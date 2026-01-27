@@ -48,9 +48,9 @@ const searchWarehouses = async (req, res) => {
 
     
     if (project_id)
-      whereClause.warehouse_id = warehouse_id
+      whereClause.project_id = project_id
     if (manager_id)
-      whereClause.material_id = material_id
+      whereClause.manager_id = manager_id
     if (name)
       whereClause.name = { [Op.iLike]: `%${name}%` };
 
@@ -132,7 +132,7 @@ const updateWarehouse = async (req, res) => {
   try {
     const { id } = req.params;
     const [updated] = await Warehouse.update(req.body, {
-      where: { warehouse_id: id }
+      where: { id: id }
     });
 
     if (!updated) {
@@ -162,7 +162,7 @@ const deleteWarehouse = async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await Warehouse.destroy({
-      where: { warehouse_id: id }
+      where: { id: id }
     });
 
     if (!deleted) {

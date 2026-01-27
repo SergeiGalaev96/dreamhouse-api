@@ -1,10 +1,15 @@
 const { Op } = require("sequelize");
 const {
   sequelize,
+  PurchaseOrder,
   PurchaseOrderItem,
+  MaterialRequest,
   MaterialRequestItem,
-  MaterialRequest
+  Warehouse,
+  WarehouseStock
 } = require('../models');
+
+const MaterialMovement = require('../models/MaterialMovement');
 
 const getAllPurchaseOrderItems = async (req, res) => {
   try {
@@ -184,11 +189,19 @@ const deletePurchaseOrderItem = async (req, res) => {
   }
 };
 
+
 const receivePurchaseOrderItems = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const { items } = req.body;
+    const { warehouse_id, items } = req.body;
+    if (!warehouse_id) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'warehouse_id обязателен'
+      });
+    }
 
     if (!Array.isArray(items) || items.length === 0) {
       await transaction.rollback();
@@ -198,26 +211,31 @@ const receivePurchaseOrderItems = async (req, res) => {
       });
     }
 
-    // Множество родительских MaterialRequest для проверки статуса
+    // Все затронутые заявки на материалы
     const affectedMaterialRequestIds = new Set();
+    const affectedPurchaseOrderIds = new Set();
 
-    // 1. Обрабатываем каждую позицию закупки
+    /* ============================================================
+       1. Обрабатываем каждую позицию закупки
+    ============================================================ */
     for (const entry of items) {
-      const { purchase_order_item_id, delivered_quantity } = entry;
+      const { purchase_order_item_id, received_quantity } = entry;
 
-      if (!purchase_order_item_id || delivered_quantity === undefined || delivered_quantity < 0) {
+      if (!purchase_order_item_id || received_quantity === undefined || received_quantity < 0) {
         throw new Error('Некорректные данные позиции приёмки');
       }
 
-      // Берём PurchaseOrderItem с привязанным MaterialRequestItem
-      const poItem = await PurchaseOrderItem.findByPk(purchase_order_item_id, {
-        include: {
-          model: MaterialRequestItem,
-          as: 'material_request_item',
-          attributes: ['material_request_id']
-        },
-        transaction
-      });
+      const poItem = await PurchaseOrderItem.findByPk(
+        purchase_order_item_id,
+        {
+          include: {
+            model: MaterialRequestItem,
+            as: 'material_request_item',
+            attributes: ['material_request_id']
+          },
+          transaction
+        }
+      );
 
       if (!poItem) {
         throw new Error(`PurchaseOrderItem ${purchase_order_item_id} не найден`);
@@ -225,11 +243,13 @@ const receivePurchaseOrderItems = async (req, res) => {
 
       const orderedQty = Number(poItem.quantity);
       const prevDelivered = Number(poItem.delivered_quantity || 0);
-      const newDeliveredTotal = prevDelivered + Number(delivered_quantity);
+      const newDeliveredTotal = prevDelivered + Number(received_quantity);
 
-      // 2. Определяем статус позиции
+      /* =======================
+         1.1 Статус позиции
+      ======================= */
       let poItemStatus;
-      if (delivered_quantity === 0) {
+      if (received_quantity === 0) {
         poItemStatus = 6; // Не доставлен
       } else if (newDeliveredTotal >= orderedQty) {
         poItemStatus = 4; // Полностью доставлен
@@ -238,39 +258,132 @@ const receivePurchaseOrderItems = async (req, res) => {
       }
 
       await poItem.update(
-        { delivered_quantity: newDeliveredTotal, status: poItemStatus },
+        {
+          delivered_quantity: newDeliveredTotal,
+          status: poItemStatus
+        },
         { transaction }
       );
 
-      if (poItem.materialRequestItem) {
-        affectedMaterialRequestIds.add(poItem.materialRequestItem.material_request_id);
+      /* =======================
+         1.2 Обновляем склад
+      ======================= */
+      if (received_quantity > 0) {
+        const stock = await WarehouseStock.findOne({
+          where: {
+            warehouse_id,
+            material_id: poItem.material_id,
+            material_type: poItem.material_type,
+            unit_of_measure: poItem.unit_of_measure,
+            deleted: false
+          },
+          transaction
+        });
+
+        if (stock) {
+          await stock.update(
+            {
+              quantity: Number(stock.quantity) + Number(received_quantity)
+            },
+            { transaction }
+          );
+        } else {
+          await WarehouseStock.create(
+            {
+              warehouse_id,
+              material_id: poItem.material_id,
+              material_type: poItem.material_type,
+              unit_of_measure: poItem.unit_of_measure,
+              quantity: Number(received_quantity)
+            },
+            { transaction }
+          );
+        }
+        /* =======================
+          1.3 Создаем транзакции
+        ======================= */
+        const warehouse = await Warehouse.findOne({
+          where: {
+            id: warehouse_id
+          },
+          transaction
+        });
+        await MaterialMovement.create(
+          {
+            project_id: warehouse.project_id,
+            date: new Date(),
+            to_warehouse_id: warehouse_id,
+            material_id: poItem.material_id,
+            quantity: Number(received_quantity),
+            user_id: req.user.id,
+            note: "Автоматическая транзакция",
+            operation: "+",
+            status: 1
+          },
+          { transaction }
+        );
+      }
+
+      if (poItem.material_request_item) {
+        affectedMaterialRequestIds.add(poItem.material_request_item.material_request_id);
+        affectedPurchaseOrderIds.add(poItem.purchase_order_id);
       }
     }
-
-    // 3. Проверяем, можно ли закрыть MaterialRequest
-    for (const mrId of affectedMaterialRequestIds) {
-      // Берём все PurchaseOrderItem по заявке
+    /* ============================================================
+      2. Проверяем, можно ли закрыть PurchaseOrder
+    ============================================================ */
+    for (const poId of affectedPurchaseOrderIds) {
       const poItems = await PurchaseOrderItem.findAll({
-        include: {
-          model: MaterialRequestItem,
-          as: 'materialRequestItem',
-          where: { material_request_id: mrId },
-          attributes: []
+        where: {
+          purchase_order_id: poId,
+          deleted: false
         },
         attributes: ['status'],
         transaction
       });
 
-      const allDelivered = poItems.length > 0 && poItems.every(i => i.status === 4);
+      const allDelivered = poItems.length > 0 && poItems.every(item => item.status === 4);
 
-      if (allDelivered) {
-        await MaterialRequest.update(
-          { status: 4 }, // Исполнена
-          { where: { id: mrId }, transaction }
-        );
-      }
-      // Если есть хотя бы одна частично доставленная позиция — статус остаётся 3 (На исполнении)
+      await PurchaseOrder.update(
+        { status: allDelivered ? 5 : 4 }, // 5 Полностью доставлен /4 Частично доставлен
+        {
+          where: { id: poId },
+          transaction
+        }
+      );
+      // иначе остаётся "В доставке"
     }
+
+    /* ============================================================
+       3. Проверяем, можно ли закрыть MaterialRequest
+    ============================================================ */
+    // for (const mrId of affectedMaterialRequestIds) {
+    //   const poItems = await PurchaseOrderItem.findAll({
+    //     include: {
+    //       model: MaterialRequestItem,
+    //       as: 'material_request_item',
+    //       where: { material_request_id: mrId },
+    //       attributes: []
+    //     },
+    //     attributes: ['status'],
+    //     transaction
+    //   });
+
+    //   const allDelivered =
+    //     poItems.length > 0 &&
+    //     poItems.every(i => i.status === 4);
+
+    //   if (allDelivered) {
+    //     await MaterialRequest.update(
+    //       { status: 4 }, // Исполнена
+    //       {
+    //         where: { id: mrId },
+    //         transaction
+    //       }
+    //     );
+    //   }
+    //   // иначе статус остаётся "На исполнении"
+    // }
 
     await transaction.commit();
 

@@ -285,8 +285,6 @@ const resetPassword = async (req, res) => {
   }
 };
 
-
-
 const changeOwnPassword = async (req, res) => {
   try {
     const userId = req.user.id;

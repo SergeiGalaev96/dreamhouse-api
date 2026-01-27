@@ -26,6 +26,7 @@ MaterialRequest.init({
   approved_by_main_engineer: DataTypes.BOOLEAN,
   approved_by_main_engineer_time: DataTypes.DATE,
   main_engineer_user_id: DataTypes.INTEGER,
+  stage_id: DataTypes.INTEGER,
 
   created_at: DataTypes.DATE,
   updated_at: DataTypes.DATE,

@@ -1,4 +1,5 @@
-const WarehouseStock = require('../models/WarehouseStock');
+const { Op } = require("sequelize");
+const { Warehouse, WarehouseStock } = require('../models');
 
 const getAllWarehouseStocks = async (req, res) => {
   try {
@@ -29,6 +30,7 @@ const searchWarehouseStocks = async (req, res) => {
     const {
       warehouse_id,
       material_id,
+      project_id,
       page = 1,
       size = 10
     } = req.body;
@@ -36,16 +38,28 @@ const searchWarehouseStocks = async (req, res) => {
     const offset = (page - 1) * size;
     const whereClause = {deleted: false};
 
-    // if (name)
-    //   whereClause.name = { [Op.iLike]: `%${name}%` };
+    
 
     if (warehouse_id)
       whereClause.warehouse_id = warehouse_id
     if (material_id)
       whereClause.material_id = material_id 
+    // Фильтр по project_id через связанный MaterialRequest
+    const include = [
+      {
+        model: Warehouse,
+        as: 'warehouse',
+        where: {
+          deleted: false,
+          ...(project_id && { project_id })
+        },
+        attributes: [] // только для фильтрации
+      }
+    ];
 
     const { count, rows } = await WarehouseStock.findAndCountAll({
       where: whereClause,
+      include,
       limit: Number(size),
       offset: Number(offset),
       order: [['created_at', 'DESC']]
@@ -121,7 +135,7 @@ const updateWarehouseStock = async (req, res) => {
   try {
     const { id } = req.params;
     const [updated] = await WarehouseStock.update(req.body, {
-      where: { warehouse_id: id }
+      where: { id: id }
     });
 
     if (!updated) {
@@ -151,7 +165,7 @@ const deleteWarehouseStock = async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await WarehouseStock.destroy({
-      where: { warehouse_id: id }
+      where: { id: id }
     });
 
     if (!deleted) {

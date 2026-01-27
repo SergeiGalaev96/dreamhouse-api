@@ -1,7 +1,16 @@
 const { Op } = require("sequelize");
-const sequelize = require('../config/database');
-const MaterialRequest = require('../models/MaterialRequest');
-const MaterialRequestItem = require('../models/MaterialRequestItem');
+
+const {
+  sequelize,
+  MaterialRequest,
+  MaterialRequestItem,
+  Material,
+  UnitOfMeasure
+} = require('../models');
+ 
+const User = require('../models/User');
+const Project = require("../models/Project");
+const { sendMaterialRequestEmail } = require('../utils/mailer');
 
 const getAllMaterialRequests = async (req, res) => {
   try {
@@ -132,24 +141,6 @@ const getMaterialRequestById = async (req, res) => {
   }
 };
 
-// const createMaterialRequest = async (req, res) => {
-//   try {
-//     const materialRequest = await MaterialRequest.create(req.body);
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Заявка на материалы успешно создана',
-//       data: materialRequest
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Ошибка сервера при создании заявки на материалы',
-//       error: error.message
-//     });
-//   }
-// };
-
 const createMaterialRequest = async (req, res) => {
   const transaction = await sequelize.transaction();
 
@@ -257,6 +248,7 @@ const updateMaterialRequest = async (req, res) => {
        Если полностью одобрена — обновляем позиции
     ============================================================ */
     if (isFullyApproved) {
+
       await MaterialRequestItem.update(
         { status: 2 },
         {
@@ -264,6 +256,63 @@ const updateMaterialRequest = async (req, res) => {
           transaction
         }
       );
+      /* ============================================================
+        Уведомляем снабженцев о новой заявке
+      ============================================================ */
+      const purchaseAgents = await User.findAll({
+        where: {
+          deleted: false,
+          role_id: 7,
+          email: { [Op.ne]: null }
+        },
+        attributes: ['id', 'email', 'first_name', 'last_name'],
+        transaction
+      });
+
+      const project = await Project.findOne({
+        where: {
+          deleted: false,
+          id: materialRequest.project_id
+        },
+        attributes: ['id', 'name'],
+        transaction
+      });
+
+      const materialRequestItems = await MaterialRequestItem.findAll({
+        where: {
+          material_request_id: materialRequest.id,
+          deleted: false
+        },
+        include: [
+          {
+            model: Material,
+            as: 'material',
+            attributes: ['name']
+          },
+          {
+            model: UnitOfMeasure,
+            as: 'unit',
+            attributes: ['name']
+          }
+        ],
+        attributes: ['quantity', 'comment']
+      });
+
+      const preparedItems = materialRequestItems.map(i => ({
+        material_name: i.material?.name,
+        quantity: i.quantity,
+        unit_of_measure_name: i.unit?.name,
+        comment: i.comment
+      }));
+
+      for (const user of purchaseAgents) {
+        await sendMaterialRequestEmail({
+          to: user.email,
+          project_name: project.name,
+          materialRequest,
+          materialRequestItems: preparedItems
+        });
+      }
     }
 
     await transaction.commit();

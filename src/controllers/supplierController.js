@@ -1,5 +1,6 @@
 const Supplier = require('../models/Supplier');
 const { Op } = require("sequelize");
+const { Sequelize } = require('sequelize');
 
 const getAllSuppliers = async (req, res) => {
   try {
@@ -142,6 +143,15 @@ const createSupplier = async (req, res) => {
       data: supplier
     });
   } catch (error) {
+    // Проверка на дубликат уникального ключа
+    if (error instanceof Sequelize.UniqueConstraintError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Поставщик с таким INN уже существует',
+        errors: error.errors.map(e => e.message) // детализируем, какие поля
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при создании поставщика',

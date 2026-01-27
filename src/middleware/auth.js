@@ -24,7 +24,7 @@ const authenticateToken = (req, res, next) => {
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err || !user) {
       if (isDev) {
-        req.user = { id: 1, role_id: 1 }; // fallback для девелопмента
+        req.user = { id: 6, role_id: 1 }; // fallback для девелопмента
         return next();
       }
 

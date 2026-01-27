@@ -85,10 +85,14 @@ router.post('/search', authenticateToken, searchPurchaseOrderItems);
  *       content:
  *         application/json:
  *           schema:
+ 
  *             type: object
  *             required:
  *               - items
  *             properties:
+ *               warehouse_id:
+ *                 type: integer
+ *                 example: 1
  *               items:
  *                 type: array
  *                 description: Список позиций для приёмки
@@ -96,13 +100,13 @@ router.post('/search', authenticateToken, searchPurchaseOrderItems);
  *                   type: object
  *                   required:
  *                     - purchase_order_item_id
- *                     - delivered_quantity
+ *                     - received_quantity
  *                   properties:
  *                     purchase_order_item_id:
  *                       type: integer
  *                       example: 15
  *                       description: ID позиции закупки
- *                     delivered_quantity:
+ *                     received_quantity:
  *                       type: number
  *                       example: 5
  *                       description: Фактически доставленное количество

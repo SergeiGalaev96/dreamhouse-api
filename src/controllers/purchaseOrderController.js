@@ -204,7 +204,7 @@ const createPurchaseOrder = async (req, res) => {
       where: {
         material_request_item_id: { [Op.in]: materialRequestItemIds },
         deleted: false,
-        status: { [Op.ne]: 5 } // 5 — отменено (если используешь)
+        status: { [Op.ne]: 5 } // 5 — отменено
       },
       group: ['material_request_item_id'],
       transaction
@@ -242,26 +242,38 @@ const createPurchaseOrder = async (req, res) => {
       }
     }
     /* ============================================================
-       7. Обновляем статус MaterialRequest → "на исполнении"
+      7. Обновляем статус MaterialRequest
     ============================================================ */
-    const materialRequestIds = [
-      ...new Set(requestItems.map(i => i.material_request_id))
-    ];
 
-    await MaterialRequest.update(
-      { status: 3 }, // на исполнении
-      {
+    // 7.1 Получаем material_request_id через MaterialRequestItem
+    const materialRequestIds = [...new Set(requestItems.map(i => i.material_request_id))];
+
+    // 7.2 Для каждой заявки считаем статусы её позиций
+    for (const mrId of materialRequestIds) {
+      const mrItems = await MaterialRequestItem.findAll({
         where: {
-          id: { [Op.in]: materialRequestIds },
-          status: { [Op.ne]: 3 }
+          material_request_id: mrId,
+          deleted: false
         },
+        attributes: ['status'],
         transaction
-      }
-    );
+      });
 
-    /* ============================================================
-       8. Фиксируем транзакцию
-    ============================================================ */
+      const allFullyOrdered =
+        mrItems.length > 0 &&
+        mrItems.every(item => item.status === 4);
+
+      await MaterialRequest.update(
+        {
+          status: allFullyOrdered ? 4 : 3
+        },
+        {
+          where: { id: mrId },
+          transaction
+        }
+      );
+    }
+
     await transaction.commit();
 
     res.status(201).json({

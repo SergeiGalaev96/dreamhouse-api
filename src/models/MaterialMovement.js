@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-const ProjectStage = sequelize.define('ProjectStage', {
+const MaterialMovement = sequelize.define('MaterialMovement', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -11,33 +11,41 @@ const ProjectStage = sequelize.define('ProjectStage', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
-  name: {
-    type: DataTypes.STRING(100),
+  date: {
+    type: DataTypes.DATE,
     allowNull: false
   },
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  start_date: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  end_date: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  planned_cost: {
-    type: DataTypes.DECIMAL(12,2),
-    allowNull: true
-  },
-  responsible_user_id: {
+  from_warehouse_id: {
     type: DataTypes.INTEGER,
     allowNull: true
+  },
+  to_warehouse_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  note: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },  
+  material_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  quantity: {
+    type: DataTypes.DECIMAL(10, 3),
+    allowNull: true
+  },
+  operation: {
+    type: DataTypes.STRING(1),
+    allowNull: false
   },
   status: {
     type: DataTypes.INTEGER,
-    defaultValue: 1
+    allowNull: false
   },
   created_at: {
     type: DataTypes.DATE
@@ -50,8 +58,8 @@ const ProjectStage = sequelize.define('ProjectStage', {
   }
 }, {
   schema: 'construction',
-  tableName: 'project_stages',
+  tableName: 'material_movements',
   timestamps: false
 });
 
-module.exports = ProjectStage;
+module.exports = MaterialMovement;

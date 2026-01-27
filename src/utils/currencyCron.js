@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const axios = require('axios');
 const xml2js = require('xml2js');
+const { Op } = require("sequelize");
 
 const { Currency, CurrencyRate } = require('../models');
 const sequelize = require('../config/database');
@@ -42,48 +43,73 @@ async function fetchNbkrRates() {
 
 /* ===================== CORE ===================== */
 
-async function updateCurrencyRates({ date, currencies }) {
-  if (!Array.isArray(currencies)) {
-    throw new Error('Currencies is not array');
+async function updateCurrencyRates() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayString = `${yyyy}-${mm}-${dd}`; // "2026-01-22"
+
+  const whereClause = {
+    deleted: false,
+    date: todayString
+  };
+
+  const todayRate = await CurrencyRate.findOne({
+    where: whereClause,
+    attributes: ['id', 'date']
+  });
+
+  if (todayRate) {
+    console.log("✅ Курсы валют на текущий день уже существуют!");
   }
-
-  const parsedDate = parseNbkrDate(date);
-  if (!parsedDate) {
-    throw new Error(`Invalid NBKR date: ${date}`);
-  }
-
-  const transaction = await sequelize.transaction();
-
-  try {
-    for (const c of currencies) {
-      if (!c.ISOCode || !c.Value) continue;
-
-      const rate = Number(String(c.Value).replace(',', '.'));
-      if (Number.isNaN(rate)) continue;
-
-      const currency = await Currency.findOne({
-        where: { code: c.ISOCode, deleted: false },
-        transaction
-      });
-
-      if (!currency) continue;
-
-      await CurrencyRate.upsert(
-        {
-          currency_id: currency.id,
-          rate,
-          date: parsedDate,
-          deleted: false
-        },
-        { transaction }
-      );
+  else {
+    const rates = await fetchNbkrRates();
+    const date = rates.date
+    const currencies = rates.currencies
+    console.log(`📊 Получено валют: ${rates.currencies.length}`);
+    if (!Array.isArray(currencies)) {
+      throw new Error('Currencies is not array');
     }
 
-    await transaction.commit();
-    console.log(`✅ Курсы валют обновлены за ${date}`);
-  } catch (err) {
-    await transaction.rollback();
-    throw err;
+    const parsedDate = parseNbkrDate(date);
+    if (!parsedDate) {
+      throw new Error(`Invalid NBKR date: ${date}`);
+    }
+
+    const transaction = await sequelize.transaction();
+
+    try {
+      for (const c of currencies) {
+        if (!c.ISOCode || !c.Value) continue;
+
+        const rate = Number(String(c.Value).replace(',', '.'));
+        if (Number.isNaN(rate)) continue;
+
+        const currency = await Currency.findOne({
+          where: { code: c.ISOCode, deleted: false },
+          transaction
+        });
+
+        if (!currency) continue;
+
+        await CurrencyRate.upsert(
+          {
+            currency_id: currency.id,
+            rate,
+            date: parsedDate,
+            deleted: false
+          },
+          { transaction }
+        );
+      }
+
+      await transaction.commit();
+      console.log(`✅ Курсы валют обновлены за ${date}`);
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
   }
 }
 
@@ -96,10 +122,7 @@ function startCurrencyCron() {
       console.log('🕒 CRON START', new Date());
 
       try {
-        const rates = await fetchNbkrRates();
-        console.log(`📊 Получено валют: ${rates.currencies.length}`);
-
-        await updateCurrencyRates(rates);
+        await updateCurrencyRates();
       } catch (err) {
         console.error('❌ CRON ERROR:', err.message);
       }
@@ -108,4 +131,4 @@ function startCurrencyCron() {
   );
 }
 
-module.exports = { startCurrencyCron };
+module.exports = { startCurrencyCron, updateCurrencyRates };

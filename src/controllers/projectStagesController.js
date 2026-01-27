@@ -7,7 +7,7 @@ const getAllProjectStages = async (req, res) => {
 
     const { count, rows } = await ProjectStage.findAndCountAll({
       where: whereClause,
-      order: [['created_at', 'DESC']]
+      order: [['created_at', 'ASC']]
     });
 
     res.json({
@@ -29,6 +29,7 @@ const getAllProjectStages = async (req, res) => {
 const searchProjectStages = async (req, res) => {
   try {
     const {
+      project_id,
       name,
       page = 1,
       size = 10
@@ -37,9 +38,12 @@ const searchProjectStages = async (req, res) => {
     const offset = (page - 1) * size;
     const whereClause = {deleted: false};
 
-
     if (name)
       whereClause.name = { [Op.iLike]: `%${name}%` };
+
+    if (project_id)
+      whereClause.project_id = project_id;
+    
 
     const { count, rows } = await ProjectStage.findAndCountAll({
       where: whereClause,
@@ -62,10 +66,10 @@ const searchProjectStages = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Ошибка при поиске проектов:", error);
+    console.error("Ошибка при поиске этапов проекта:", error);
     res.status(500).json({
       success: false,
-      message: "Ошибка сервера при поиске проектов",
+      message: "Ошибка сервера при этапов проекта",
       error: error.message,
     });
   }

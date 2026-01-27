@@ -12,7 +12,7 @@ const Supplier = sequelize.define('Supplier', {
     allowNull: false
   },
   inn: {
-    type: DataTypes.STRING(16),
+    type: DataTypes.STRING(14),
     allowNull: true,
     unique: true
   },
@@ -34,7 +34,7 @@ const Supplier = sequelize.define('Supplier', {
   },
   email: {
     type: DataTypes.STRING(100),
-    allowNull: true
+    allowNull: false
   },
   contact_person: {
     type: DataTypes.STRING(100),

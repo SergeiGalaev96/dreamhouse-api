@@ -53,6 +53,9 @@ router.get('/gets', authenticateToken, getAllWarehouseStocks);
  *           schema:
  *             type: object
  *             properties:
+ *               project_id:
+ *                 type: integer
+ *                 example: 1
  *               warehouse_id:
  *                 type: integer
  *                 example: 1

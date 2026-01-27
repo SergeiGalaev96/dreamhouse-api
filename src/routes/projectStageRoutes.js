@@ -45,6 +45,8 @@ router.get('/gets', authenticateToken, getAllProjectStages);
  *           schema:
  *             type: object
  *             properties:
+ *               project_id:
+ *                 type: integer
  *               name:
  *                 type: string
  *               page:

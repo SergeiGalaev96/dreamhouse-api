@@ -15,11 +15,15 @@ const WarehouseStock = sequelize.define('WarehouseStock', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
-  quantity: {
-    type: DataTypes.DECIMAL(12,3),
-    defaultValue: 0
+  material_type: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
-  reserved_quantity: {
+   unit_of_measure: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  quantity: {
     type: DataTypes.DECIMAL(12,3),
     defaultValue: 0
   },
@@ -29,11 +33,7 @@ const WarehouseStock = sequelize.define('WarehouseStock', {
   },
   max: {
     type: DataTypes.DECIMAL(12,3),
-    allowNull: true
-  },
-  updated_by: {
-    type: DataTypes.INTEGER,
-    allowNull: true
+    defaultValue: 0
   },
   created_at: {
     type: DataTypes.DATE

@@ -7,7 +7,7 @@ const getAllCurrencies = async (req, res) => {
 
     const { count, rows } = await Currency.findAndCountAll({
       where: whereClause,
-      order: [['created_at', 'DESC']]
+      order: [['id', 'ASC']]
     });
 
     res.json({

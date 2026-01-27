@@ -25,23 +25,25 @@ const materialRequestRoutes = require('./routes/materialRequestRoutes');
 const materialRequestItemRoutes = require('./routes/materialRequestItemRoutes');
 const materialRequestStatusRoutes = require('./routes/materialRequestStatusRoutes');
 const materialRequestItemStatusRoutes = require('./routes/materialRequestItemStatusRoutes');
-
+// Склады
+const warehouseRoutes = require('./routes/warehouseRoutes');
+const warehouseStockRoutes = require('./routes/warehouseStockRoutes');
+// Транзакции материалов
+const materialMovementRoutes = require('./routes/materialMovementRoutes');
+const materialMovementStatusRoutes = require('./routes/materialMovementStatusRoutes');
 // Заявки на закуп
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const purchaseOrderStatusRoutes = require('./routes/purchaseOrderStatusRoutes');
 const purchaseOrderItemRoutes = require('./routes/purchaseOrderItemRoutes');
 const purchaseOrderItemStatusRoutes = require('./routes/purchaseOrderItemStatusRoutes');
-
 // Поставщики
 const supplierRoutes = require('./routes/supplierRoutes');
-
 // Валюты
 const currencyRoutes = require('./routes/currencyRoutes');
 const currencyRatesRoutes = require('./routes/currencyRatesRoutes');
-const { startCurrencyCron } = require('./utils/currencyCron');
+const { startCurrencyCron, updateCurrencyRates } = require('./utils/currencyCron');
 
-const warehouseRoutes = require('./routes/warehouseRoutes');
-const warehouseStockRoutes = require('./routes/warehouseStockRoutes');
+
 
 const contractRoutes = require('./routes/contractRoutes');
 const contractorRoutes = require('./routes/contractorRoutes');
@@ -152,9 +154,14 @@ app.use('/api/suppliers', supplierRoutes);
 app.use('/api/currencies', currencyRoutes);
 app.use('/api/currencyRates', currencyRatesRoutes);
 startCurrencyCron(); // атоматическое обновление курсов из НБКР
+updateCurrencyRates();
 // Склады
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/warehouseStocks', warehouseStockRoutes);
+// Транзакции материалов
+app.use('/api/materialMovements', materialMovementRoutes);
+app.use('/api/materialMovementStatuses', materialMovementStatusRoutes);
+
 // Контракты
 app.use('/api/contracts', contractRoutes);
 app.use('/api/contractors', contractorRoutes);
