@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { sendTempPasswordEmail } = require('../utils/mailer');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllUsers = async (req, res) => {
   try {
@@ -194,34 +195,49 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = { ...req.body };
 
-    // Удаляем поля, которые не должны обновляться
-    delete updateData.id;
-    delete updateData.password_hash;
-    delete updateData.created_at;
+    // ❗ Явно формируем разрешённые поля
+    const {
+      comment,
+      password_hash, // запрещено
+      id: bodyId,    // запрещено
+      created_at,    // запрещено
+      ...data
+    } = req.body;
 
-    const [updated] = await User.update(updateData, {
-      where: { id: id }
+    const result = await updateWithAudit({
+      model: User,
+      id,
+      data,
+      entityType: 'user',
+      action: 'user_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Пользователь не найден'
       });
     }
 
-    const updatedUser = await User.findByPk(id, {
+    // ⚠️ Возвращаем пользователя БЕЗ password_hash
+    const safeUser = await User.findByPk(id, {
       attributes: { exclude: ['password_hash'] }
     });
 
-    res.json({
+    return res.json({
       success: true,
-      message: 'Пользователь успешно обновлен',
-      data: updatedUser
+      message: result.changed
+        ? 'Пользователь успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: safeUser
     });
+
   } catch (error) {
+    console.error('updateUser error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении пользователя',

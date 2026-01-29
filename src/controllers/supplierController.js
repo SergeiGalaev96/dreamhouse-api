@@ -1,6 +1,7 @@
 const Supplier = require('../models/Supplier');
 const { Op } = require("sequelize");
 const { Sequelize } = require('sequelize');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllSuppliers = async (req, res) => {
   try {
@@ -163,25 +164,36 @@ const createSupplier = async (req, res) => {
 const updateSupplier = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await Supplier.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: Supplier,
+      id,
+      data,
+      entityType: 'supplier',
+      action: 'supplier_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Поставщик не найден'
       });
     }
 
-    const updatedSupplier = await Supplier.findByPk(id);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Поставщик успешно обновлен',
-      data: updatedSupplier
+      message: result.changed
+        ? 'Поставщик успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateSupplier error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении поставщика',

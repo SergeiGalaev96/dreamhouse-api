@@ -1,9 +1,10 @@
 const { Op } = require("sequelize");
 const Document = require('../models/Document');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllDocuments = async (req, res) => {
   try {
-    const whereClause = {deleted: false};
+    const whereClause = { deleted: false };
     const { count, rows } = await Document.findAndCountAll({
       where: whereClause,
       order: [['created_at', 'DESC']]
@@ -31,11 +32,12 @@ const getAllDocuments = async (req, res) => {
 const searchDocuments = async (req, res) => {
   try {
     let {
-      search,
-      type,
-      status,
       project_id,
-      contract_id,
+      stage_id,
+      name,
+      description,
+      // search,
+      status,
       page = 1,
       size = 10
     } = req.body;
@@ -47,18 +49,19 @@ const searchDocuments = async (req, res) => {
     const whereClause = {};
 
     // Поиск по name / number / description
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { number: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
-      ];
-    }
-
-    if (type) whereClause.type = type;
-    if (status) whereClause.status = status;
+    // if (search) {
+    //   whereClause[Op.or] = [
+    //     { name: { [Op.iLike]: `%${search}%` } },
+    //     { number: { [Op.iLike]: `%${search}%` } },
+    //     { description: { [Op.iLike]: `%${search}%` } }
+    //   ];
+    // }
     if (project_id) whereClause.project_id = Number(project_id);
-    if (contract_id) whereClause.contract_id = Number(contract_id);
+    if (stage_id) whereClause.stage_id = Number(stage_id);
+    if (name) whereClause.name = { [Op.iLike]: `%${name}%` };
+    if (description) whereClause.name = { [Op.iLike]: `%${description}%` };
+    if (status) whereClause.status = status;
+
 
     const { count, rows } = await Document.findAndCountAll({
       where: whereClause,
@@ -88,7 +91,6 @@ const searchDocuments = async (req, res) => {
     });
   }
 };
-
 
 const getDocumentById = async (req, res) => {
   try {
@@ -121,9 +123,9 @@ const createDocument = async (req, res) => {
       ...req.body,
       uploaded_by: req.user.id
     };
-    
+
     const document = await Document.create(documentData);
-    
+
     res.status(201).json({
       success: true,
       message: 'Документ успешно создан',
@@ -141,25 +143,35 @@ const createDocument = async (req, res) => {
 const updateDocument = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await Document.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: Document,
+      id,
+      data,
+      entityType: 'document',
+      action: 'document_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Документ не найден'
       });
     }
 
-    const updatedDocument = await Document.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Документ успешно обновлен',
-      data: updatedDocument
+      message: result.changed
+        ? 'Документ успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateDocument error:', error);
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении документа',
@@ -194,6 +206,8 @@ const deleteDocument = async (req, res) => {
     });
   }
 };
+
+
 
 module.exports = {
   getAllDocuments,

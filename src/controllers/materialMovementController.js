@@ -1,5 +1,6 @@
-const MaterialMovement = require('../models/MaterialMovement');
 const { Op } = require("sequelize");
+const MaterialMovement = require('../models/MaterialMovement');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllMaterialMovements = async (req, res) => {
   try {
@@ -125,25 +126,36 @@ const createMaterialMovement = async (req, res) => {
 const updateMaterialMovement = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await MaterialMovement.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: MaterialMovement,
+      id,
+      data,
+      entityType: 'material_movement',
+      action: 'material_movement_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Транзакция не найдена'
       });
     }
 
-    const updatedProject = await MaterialMovement.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Транзакция успешно обновлена',
-      data: updatedProject
+      message: result.changed
+        ? 'Транзакция успешно обновлена'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateMaterialMovement error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении транзакции',
@@ -151,6 +163,7 @@ const updateMaterialMovement = async (req, res) => {
     });
   }
 };
+
 
 const deleteMaterialMovement = async (req, res) => {
   try {

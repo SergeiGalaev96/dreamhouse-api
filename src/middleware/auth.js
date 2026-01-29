@@ -10,7 +10,7 @@ const authenticateToken = (req, res, next) => {
   // Если токена нет
   if (!token) {
     if (isDev) {
-      req.user = { id: 1, role_id: 1 }; // фейковый пользователь
+      req.user = { id: 6, role_id: 1 }; // фейковый пользователь
       return next();
     }
 

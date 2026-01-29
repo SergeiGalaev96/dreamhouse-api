@@ -1,8 +1,12 @@
 const sequelize = require('../config/database');
 
 // импорт моделей (КЛАССЫ, не функции)
+const MaterialStatement = require('./MaterialStatement');
+const MaterialStatementItem = require('./MaterialStatementItem');
+
 const MaterialRequest = require('./MaterialRequest');
 const MaterialRequestItem = require('./MaterialRequestItem');
+
 const Material = require('./Material');
 const UnitOfMeasure = require('./UnitOfMeasure');
 
@@ -15,9 +19,23 @@ const CurrencyRate = require('./CurrencyRate');
 const WarehouseStock = require('./WarehouseStock');
 const Warehouse = require('./Warehouse');
 
+const Document = require('./Document');
+const DocumentFile = require('./DocumentFile');
+
 /**
  * === АССОЦИАЦИИ ===
  */
+
+// MaterialStatement -> MaterialStatementItem
+MaterialStatement.hasMany(MaterialStatementItem, {
+  foreignKey: 'material_statement_id',
+  as: 'items'
+});
+
+MaterialStatementItem.belongsTo(MaterialStatement, {
+  foreignKey: 'material_statement_id',
+  as: 'material_statement'
+});
 
 // MaterialRequest -> MaterialRequestItem
 MaterialRequest.hasMany(MaterialRequestItem, {
@@ -88,8 +106,21 @@ WarehouseStock.belongsTo(Warehouse, {
   as: 'warehouse'
 });
 
+// Document → DocumentFile
+Document.hasMany(DocumentFile, {
+  foreignKey: 'document_id',
+  as: 'files'
+});
+
+DocumentFile.belongsTo(Document, {
+  foreignKey: 'document_id',
+  as: 'file'
+});
+
 module.exports = {
   sequelize,
+  MaterialStatement,
+  MaterialStatementItem,
   MaterialRequest,
   MaterialRequestItem,
   Material,
@@ -99,5 +130,7 @@ module.exports = {
   Currency,
   CurrencyRate,
   Warehouse,
-  WarehouseStock
+  WarehouseStock,
+  Document,
+  DocumentFile
 };

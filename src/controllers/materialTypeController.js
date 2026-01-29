@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const MaterialType = require('../models/MaterialType');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllMaterialTypes = async (req, res) => {
   try {
@@ -120,25 +121,35 @@ const createMaterialType = async (req, res) => {
 const updateMaterialType = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await MaterialType.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: MaterialType,
+      id,
+      data,
+      entityType: 'material_type',
+      action: 'material_type_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Тип материала не найден'
       });
     }
 
-    const updatedMaterialType = await MaterialType.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Тип материала успешно обновлен',
-      data: updatedMaterialType
+      message: result.changed
+        ? 'Тип материала успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateMaterialType error:', error);
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении типа материала',
@@ -146,6 +157,8 @@ const updateMaterialType = async (req, res) => {
     });
   }
 };
+
+
 
 const deleteMaterialType = async (req, res) => {
   try {

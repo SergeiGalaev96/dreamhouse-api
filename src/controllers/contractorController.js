@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const Contractor = require('../models/Contractor');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllContractors = async (req, res) => {
   try {
@@ -123,32 +124,44 @@ const createContractor = async (req, res) => {
 const updateContractor = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await Contractor.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: Contractor,
+      id,
+      data,
+      entityType: 'contractor',
+      action: 'contractor_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Контрактор не найден'
       });
     }
 
-    const updatedContractor = await Contractor.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Контрактор успешно обновлен',
-      data: updatedContractor
+      message: result.changed
+        ? 'Контрактор успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateContractor error:', error);
+
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при обновлении Контрактора',
+      message: 'Ошибка сервера при обновлении контрактора',
       error: error.message
     });
   }
 };
+
 
 const deleteContractor = async (req, res) => {
   try {

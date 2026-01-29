@@ -1,5 +1,6 @@
-const ProjectStage = require('../models/ProjectStage');
 const { Op } = require("sequelize");
+const ProjectStage = require('../models/ProjectStage');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllProjectStages = async (req, res) => {
   try {
@@ -121,25 +122,36 @@ const createProjectStage = async (req, res) => {
 const updateProjectStage = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await ProjectStage.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: ProjectStage,
+      id,
+      data,
+      entityType: 'project_stage',
+      action: 'project_stage_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Этап проекта не найден'
       });
     }
 
-    const updatedProject = await ProjectStage.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Этап проекта успешно обновлен',
-      data: updatedProject
+      message: result.changed
+        ? 'Этап проекта успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateProjectStage error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении этапа проекта',
@@ -147,6 +159,8 @@ const updateProjectStage = async (req, res) => {
     });
   }
 };
+
+
 
 const deleteProjectStage = async (req, res) => {
   try {

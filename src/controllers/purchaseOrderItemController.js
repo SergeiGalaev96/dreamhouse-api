@@ -8,8 +8,8 @@ const {
   Warehouse,
   WarehouseStock
 } = require('../models');
-
 const MaterialMovement = require('../models/MaterialMovement');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllPurchaseOrderItems = async (req, res) => {
   try {
@@ -130,25 +130,36 @@ const createPurchaseOrderItem = async (req, res) => {
 const updatePurchaseOrderItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await PurchaseOrderItem.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: PurchaseOrderItem,
+      id,
+      data,
+      entityType: 'purchase_order_item',
+      action: 'purchase_order_item_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Материал в заявке на закуп не найден'
       });
     }
 
-    const updatedPurchaseOrderItem = await PurchaseOrderItem.findByPk(id);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Материал в заявке на закуп успешно обновлен',
-      data: updatedPurchaseOrderItem
+      message: result.changed
+        ? 'Материал в заявке на закуп успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updatePurchaseOrderItem error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении материала в заявке на закуп',

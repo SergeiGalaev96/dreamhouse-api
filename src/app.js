@@ -9,7 +9,8 @@ const swaggerUi = require('swagger-ui-express');
 // Импорт маршрутов
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const userRolesRoutes = require('./routes/userRoleRoutes');
+const userRoleRoutes = require('./routes/userRoleRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
 
 const projectRoutes = require('./routes/projectRoutes');
 const projectTypeRoutes = require('./routes/projectTypeRoutes');
@@ -20,6 +21,11 @@ const projectStageStatusRoutes = require('./routes/projectStageStatusRoutes');
 const materialRoutes = require('./routes/materialRoutes');
 const materialTypeRoutes = require('./routes/materialTypeRoutes');
 const unitOfMeasureRoutes = require('./routes/unitOfMeasureRoutes');
+// Ведомость материалов
+const materialStatementRoutes = require('./routes/materialStatementRoutes');
+const materialStatementItemRoutes = require('./routes/materialStatementItemRoutes');
+
+
 // Заявки на материалы
 const materialRequestRoutes = require('./routes/materialRequestRoutes');
 const materialRequestItemRoutes = require('./routes/materialRequestItemRoutes');
@@ -47,7 +53,12 @@ const { startCurrencyCron, updateCurrencyRates } = require('./utils/currencyCron
 
 const contractRoutes = require('./routes/contractRoutes');
 const contractorRoutes = require('./routes/contractorRoutes');
+
+// Документы
 const documentRoutes = require('./routes/documentRoutes');
+const documentStageRoutes = require('./routes/documentStageRoutes');
+const documentStatusRoutes = require('./routes/documentStatusRoutes');
+const documentFileRoutes = require('./routes/documentFileRoutes');
 
 const workTeamRoutes = require('./routes/workTeamRoutes');
 const teamMemberRoutes = require('./routes/teamMemberRoutes');
@@ -67,6 +78,7 @@ app.use(cors({
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 
 const getLocalIp = () => {
   const interfaces = os.networkInterfaces();
@@ -126,7 +138,8 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // Аутентификация
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/userRoles', userRolesRoutes);
+app.use('/api/userRoles', userRoleRoutes);
+app.use('/api/auditLog', auditLogRoutes);
 // Объекты
 app.use('/api/projects', projectRoutes);
 app.use('/api/projectTypes', projectTypeRoutes);
@@ -137,6 +150,10 @@ app.use('/api/projectStageStatuses', projectStageStatusRoutes);
 app.use('/api/materials', materialRoutes);
 app.use('/api/materialTypes', materialTypeRoutes);
 app.use('/api/unitsOfMeasure', unitOfMeasureRoutes);
+// Ведомость материалов
+app.use('/api/materialStatements', materialStatementRoutes);
+app.use('/api/materialStatementItems', materialStatementItemRoutes);
+
 // Заявки на материалы
 app.use('/api/materialRequests', materialRequestRoutes);
 app.use('/api/materialRequestStatuses', materialRequestStatusRoutes);
@@ -170,6 +187,10 @@ app.use('/api/workTeams', workTeamRoutes);
 app.use('/api/teamMembers', teamMemberRoutes);
 // Документы
 app.use('/api/documents', documentRoutes);
+app.use('/api/documentStages', documentStageRoutes);
+app.use('/api/documentStatuses', documentStatusRoutes);
+app.use('/api/documentFiles', documentFileRoutes);
+
 
 // Обработка 404
 app.use((req, res) => {

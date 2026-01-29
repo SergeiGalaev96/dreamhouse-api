@@ -1,5 +1,4 @@
 const { Op } = require("sequelize");
-
 const {
   sequelize,
   MaterialRequest,
@@ -7,10 +6,10 @@ const {
   Material,
   UnitOfMeasure
 } = require('../models');
- 
 const User = require('../models/User');
 const Project = require("../models/Project");
 const { sendMaterialRequestEmail } = require('../utils/mailer');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllMaterialRequests = async (req, res) => {
   try {
@@ -205,9 +204,13 @@ const updateMaterialRequest = async (req, res) => {
       approved_by_purchasing_agent,
       approved_by_planning_engineer,
       approved_by_main_engineer,
+      comment,
       ...restBody
     } = req.body;
 
+    /* ============================================================
+       Проверяем наличие заявки
+    ============================================================ */
     const materialRequest = await MaterialRequest.findByPk(id, { transaction });
 
     if (!materialRequest) {
@@ -229,10 +232,12 @@ const updateMaterialRequest = async (req, res) => {
       approved_by_main_engineer === true;
 
     /* ============================================================
-       Обновляем заявку (один раз)
+       Апдейт заявки + АУДИТ (через helper)
     ============================================================ */
-    await materialRequest.update(
-      {
+    const result = await updateWithAudit({
+      model: MaterialRequest,
+      id,
+      data: {
         ...restBody,
         approved_by_foreman,
         approved_by_site_manager,
@@ -241,14 +246,28 @@ const updateMaterialRequest = async (req, res) => {
         approved_by_main_engineer,
         ...(isFullyApproved ? { status: 2 } : {})
       },
-      { transaction }
-    );
+      entityType: 'material_request',
+      action: isFullyApproved
+        ? 'material_request_approved'
+        : 'material_request_updated',
+      userId: req.user.id,
+      comment,
+      transaction
+    });
+
+    // теоретически не сработает, но оставляем ради консистентности
+    if (result.notFound) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Заявка на материалы не найдена'
+      });
+    }
 
     /* ============================================================
        Если полностью одобрена — обновляем позиции
     ============================================================ */
     if (isFullyApproved) {
-
       await MaterialRequestItem.update(
         { status: 2 },
         {
@@ -256,8 +275,10 @@ const updateMaterialRequest = async (req, res) => {
           transaction
         }
       );
+
       /* ============================================================
-        Уведомляем снабженцев о новой заявке
+         Уведомления снабженцам
+         (делаем ДО commit — если упадёт, всё откатится)
       ============================================================ */
       const purchaseAgents = await User.findAll({
         where: {
@@ -295,7 +316,8 @@ const updateMaterialRequest = async (req, res) => {
             attributes: ['name']
           }
         ],
-        attributes: ['quantity', 'comment']
+        attributes: ['quantity', 'comment'],
+        transaction
       });
 
       const preparedItems = materialRequestItems.map(i => ({
@@ -317,10 +339,10 @@ const updateMaterialRequest = async (req, res) => {
 
     await transaction.commit();
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Заявка на материалы успешно обновлена',
-      data: materialRequest
+      data: result.instance
     });
 
   } catch (error) {
@@ -334,8 +356,6 @@ const updateMaterialRequest = async (req, res) => {
     });
   }
 };
-
-
 
 const deleteMaterialRequest = async (req, res) => {
   try {

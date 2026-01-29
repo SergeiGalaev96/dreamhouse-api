@@ -3,6 +3,7 @@ const sequelize = require('../config/database');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const PurchaseOrderItem = require('../models/PurchaseOrderItem');
 const { MaterialRequestItem, MaterialRequest } = require('../models');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllPurchaseOrders = async (req, res) => {
   try {
@@ -98,7 +99,6 @@ const searchPurchaseOrders = async (req, res) => {
     });
   }
 };
-
 
 const getPurchaseOrderById = async (req, res) => {
   try {
@@ -297,28 +297,39 @@ const createPurchaseOrder = async (req, res) => {
 const updatePurchaseOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await PurchaseOrder.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: PurchaseOrder,
+      id,
+      data,
+      entityType: 'purchase_order',
+      action: 'purchase_order_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
-        message: 'Заявка на материалы не найдена'
+        message: 'Заявка на закуп не найдена'
       });
     }
 
-    const updatedPurchaseOrder = await PurchaseOrder.findByPk(id);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Заявка на материалы успешно обновлена',
-      data: updatedPurchaseOrder
+      message: result.changed
+        ? 'Заявка на закуп успешно обновлена'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updatePurchaseOrder error:', error);
+
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при обновлении заявки на материалы',
+      message: 'Ошибка сервера при обновлении заявки на закуп',
       error: error.message
     });
   }

@@ -52,26 +52,21 @@ router.get('/gets', authenticateToken, getAllDocuments);
  *           schema:
  *             type: object
  *             properties:
- *               search:
- *                 type: string
- *                 description: Поиск по name, number, description
- *                 example: "договор"
- *               type:
- *                 type: string
- *                 description: Фильтр по типу документа
- *                 example: "contract"
- *               status:
- *                 type: string
- *                 description: Статус документа (draft, approved, rejected)
- *                 example: "approved"
  *               project_id:
  *                 type: integer
- *                 description: Фильтр по проекту
- *                 example: 12
- *               contract_id:
+ *                 example: 1
+ *               stage_id:
  *                 type: integer
- *                 description: Фильтр по контракту
- *                 example: 44
+ *                 example: 1
+ *               status:
+ *                 type: integer
+ *                 example: 1
+ *               name:
+ *                 type: string
+ *                 example: "string"
+ *               description:
+ *                 type: string
+ *                 example: "string"
  *               page:
  *                 type: integer
  *                 description: Номер страницы
@@ -140,12 +135,6 @@ router.get('/getById/:id', authenticateToken, getDocumentById);
  *               document_name:
  *                 type: string
  *                 description: Название документа
- *               document_type:
- *                 type: string
- *                 description: Тип документа
- *               document_number:
- *                 type: string
- *                 description: Номер документа
  *               document_date:
  *                 type: string
  *                 format: date
@@ -153,18 +142,6 @@ router.get('/getById/:id', authenticateToken, getDocumentById);
  *               project_id:
  *                 type: integer
  *                 description: ID проекта
- *               contract_id:
- *                 type: integer
- *                 description: ID договора
- *               file_path:
- *                 type: string
- *                 description: Путь к файлу
- *               file_size:
- *                 type: integer
- *                 description: Размер файла
- *               mime_type:
- *                 type: string
- *                 description: MIME-тип файла
  *               status:
  *                 type: string
  *                 description: Статус документа
@@ -208,25 +185,8 @@ router.post('/create', authenticateToken, createDocument);
  *           schema:
  *             type: object
  *             properties:
- *               document_name:
- *                 type: string
- *               document_type:
- *                 type: string
- *               document_number:
- *                 type: string
- *               document_date:
- *                 type: string
- *                 format: date
  *               project_id:
  *                 type: integer
- *               contract_id:
- *                 type: integer
- *               file_path:
- *                 type: string
- *               file_size:
- *                 type: integer
- *               mime_type:
- *                 type: string
  *               status:
  *                 type: string
  *               version:

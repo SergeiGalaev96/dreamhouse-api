@@ -7,52 +7,24 @@ const Document = sequelize.define('Document', {
     primaryKey: true,
     autoIncrement: true
   },
-  name: {
-    type: DataTypes.STRING(200),
-    allowNull: false
-  },
-  type: {
-    type: DataTypes.STRING(50),
-    allowNull: false
-  },
-  number: {
-    type: DataTypes.STRING(50),
-    allowNull: true
-  },
-  date: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
   project_id: {
     type: DataTypes.INTEGER,
     allowNull: true
   },
-  contract_id: {
+  stage_id: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    defaultValue: 1
   },
-  file_path: {
-    type: DataTypes.STRING(500),
-    allowNull: true
-  },
-  file_size: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
-  mime_type: {
-    type: DataTypes.STRING(100),
-    allowNull: true
-  },
-  uploaded_by: {
-    type: DataTypes.INTEGER,
-    allowNull: true
+  name: {
+    type: DataTypes.STRING(200),
+    allowNull: false
   },
   status: {
-    type: DataTypes.STRING(30),
-    defaultValue: 'draft'
-  },
-  version: {
     type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
+  price: {
+    type: DataTypes.DECIMAL(10,2),
     defaultValue: 1
   },
   description: {

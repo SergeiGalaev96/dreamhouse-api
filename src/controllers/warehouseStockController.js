@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { Warehouse, WarehouseStock } = require('../models');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllWarehouseStocks = async (req, res) => {
   try {
@@ -134,25 +135,36 @@ const createWarehouseStock = async (req, res) => {
 const updateWarehouseStock = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await WarehouseStock.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: WarehouseStock,
+      id,
+      data,
+      entityType: 'warehouse_stock',
+      action: 'warehouse_stock_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Запас не найден'
       });
     }
 
-    const updatedWarehouseStock = await WarehouseStock.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Запас успешно обновлен',
-      data: updatedWarehouseStock
+      message: result.changed
+        ? 'Запас успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateWarehouseStock error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении запаса',
@@ -160,6 +172,7 @@ const updateWarehouseStock = async (req, res) => {
     });
   }
 };
+
 
 const deleteWarehouseStock = async (req, res) => {
   try {

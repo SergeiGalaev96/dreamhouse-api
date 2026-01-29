@@ -1,4 +1,6 @@
 const Warehouse = require('../models/Warehouse');
+const updateWithAudit = require('../utils/updateWithAudit');
+
 
 const getAllWarehouses = async (req, res) => {
   try {
@@ -131,25 +133,36 @@ const createWarehouse = async (req, res) => {
 const updateWarehouse = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await Warehouse.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: Warehouse,
+      id,
+      data,
+      entityType: 'warehouse',
+      action: 'warehouse_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Склад не найден'
       });
     }
 
-    const updatedWarehouse = await Warehouse.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Склад успешно обновлен',
-      data: updatedWarehouse
+      message: result.changed
+        ? 'Склад успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateWarehouse error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении склада',
@@ -157,6 +170,7 @@ const updateWarehouse = async (req, res) => {
     });
   }
 };
+
 
 const deleteWarehouse = async (req, res) => {
   try {

@@ -1,5 +1,7 @@
 const { Op } = require("sequelize");
 const UnitOfMeasure = require('../models/UnitOfMeasure');
+const updateWithAudit = require('../utils/updateWithAudit');
+
 
 const getAllUnitsOfMeasure = async (req, res) => {
   try {
@@ -120,25 +122,36 @@ const createUnitOfMeasure = async (req, res) => {
 const updateUnitOfMeasure = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await UnitOfMeasure.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: UnitOfMeasure,
+      id,
+      data,
+      entityType: 'unit_of_measure',
+      action: 'unit_of_measure_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Единица измерения не найдена'
       });
     }
 
-    const updatedUnitOfMeasure = await UnitOfMeasure.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Единица измерения успешно обновлена',
-      data: updatedUnitOfMeasure
+      message: result.changed
+        ? 'Единица измерения успешно обновлена'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateUnitOfMeasure error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении единицы измерения',
@@ -146,6 +159,7 @@ const updateUnitOfMeasure = async (req, res) => {
     });
   }
 };
+
 
 const deleteUnitOfMeasure = async (req, res) => {
   try {

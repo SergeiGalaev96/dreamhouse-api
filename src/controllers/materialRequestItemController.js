@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { MaterialRequestItem, MaterialRequest, PurchaseOrderItem } = require('../models');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllMaterialRequestItems = async (req, res) => {
   try {
@@ -217,25 +218,35 @@ const createMaterialRequestItem = async (req, res) => {
 const updateMaterialRequestItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await MaterialRequestItem.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: MaterialRequestItem,
+      id,
+      data,
+      entityType: 'material_request_item',
+      action: 'material_request_item_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Материал в заявке не найден'
       });
     }
 
-    const updatedMaterialRequestItem = await MaterialRequestItem.findByPk(id);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Материал в заявке успешно обновлен',
-      data: updatedMaterialRequestItem
+      message: result.changed
+        ? 'Материал в заявке успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateMaterialRequestItem error:', error);
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении материала в заявке',
@@ -243,6 +254,8 @@ const updateMaterialRequestItem = async (req, res) => {
     });
   }
 };
+
+
 
 const deleteMaterialRequestItem = async (req, res) => {
   try {

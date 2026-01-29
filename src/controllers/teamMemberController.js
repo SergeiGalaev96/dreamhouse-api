@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const TeamMember = require('../models/TeamMember');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllTeamMembers = async (req, res) => {
   try {
@@ -119,25 +120,36 @@ const createTeamMember = async (req, res) => {
 const updateTeamMember = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await TeamMember.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: TeamMember,
+      id,
+      data,
+      entityType: 'team_member',
+      action: 'team_member_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Специалист бригады не найден'
       });
     }
 
-    const updatedTeamMember = await TeamMember.findByPk(id);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Специалист бригады успешно обновлен',
-      data: updatedTeamMember
+      message: result.changed
+        ? 'Специалист бригады успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateTeamMember error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении специалиста бригады',
@@ -145,6 +157,7 @@ const updateTeamMember = async (req, res) => {
     });
   }
 };
+
 
 const deleteTeamMember = async (req, res) => {
   try {

@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const Contract = require('../models/Contract');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllContracts = async (req, res) => {
   try {
@@ -40,7 +41,7 @@ const searchContracts = async (req, res) => {
     const whereClause = {};
 
     if (number)
-      whereClause.name = { [Op.iLike]: `%${number}%` };
+      whereClause.number = { [Op.iLike]: `%${number}%` };
 
     const { count, rows } = await Contract.findAndCountAll({
       where: whereClause,
@@ -123,25 +124,36 @@ const createContract = async (req, res) => {
 const updateContract = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await Contract.update(req.body, {
-      where: { id: id }
+    const { comment, ...data } = req.body;
+
+    const result = await updateWithAudit({
+      model: Contract,
+      id,
+      data,
+      entityType: 'contract',
+      action: 'contract_updated',
+      userId: req.user.id,
+      comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Контракт не найден'
       });
     }
 
-    const updatedContract = await Contract.findByPk(id);
-    
-    res.json({
+    return res.json({
       success: true,
-      message: 'Контракт успешно обновлен',
-      data: updatedContract
+      message: result.changed
+        ? 'Контракт успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
+    console.error('updateContract error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении контракта',
@@ -149,6 +161,7 @@ const updateContract = async (req, res) => {
     });
   }
 };
+
 
 const deleteContract = async (req, res) => {
   try {

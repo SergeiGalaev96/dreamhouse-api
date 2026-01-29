@@ -1,5 +1,6 @@
-const Project = require('../models/Project');
 const { Op } = require("sequelize");
+const Project = require('../models/Project');
+const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllProjects = async (req, res) => {
   try {
@@ -149,25 +150,31 @@ const createProject = async (req, res) => {
 
 const updateProject = async (req, res) => {
   try {
-    const { id } = req.params;
-    const [updated] = await Project.update(req.body, {
-      where: { id: id }
+    const result = await updateWithAudit({
+      model: Project,
+      id: req.params.id,
+      data: req.body,
+      entityType: 'project',
+      action: 'project_updated',
+      userId: req.user.id,
+      comment: req.body.comment
     });
 
-    if (!updated) {
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         message: 'Проект не найден'
       });
     }
 
-    const updatedProject = await Project.findByPk(id);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Проект успешно обновлен',
-      data: updatedProject
+      message: result.changed
+        ? 'Проект успешно обновлён'
+        : 'Изменений не обнаружено',
+      data: result.instance
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -176,6 +183,7 @@ const updateProject = async (req, res) => {
     });
   }
 };
+
 
 const deleteProject = async (req, res) => {
   try {
