@@ -31,6 +31,14 @@ const Document = sequelize.define('Document', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  deadline: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  responsible_users: {
+    type: DataTypes.ARRAY(DataTypes.INTEGER),
+    allowNull: true
+  },
   created_at: {
     type: DataTypes.DATE
   },

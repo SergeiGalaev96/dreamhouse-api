@@ -30,7 +30,6 @@ const searchMaterials = async (req, res) => {
   try {
     const {
       name,
-      code,
       description,
       type,
       unit_of_measure,
@@ -46,8 +45,6 @@ const searchMaterials = async (req, res) => {
 
     if (name)
       whereClause.name = { [Op.iLike]: `%${name}%` };
-    if (code)
-      whereClause.code = { [Op.iLike]: `%${code}%` };
     if (description)
       whereClause.description = { [Op.iLike]: `%${description}%` };
 

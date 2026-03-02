@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-const MaterialType = sequelize.define('MaterialType', {
+const StageSubsection = sequelize.define('StageSubsection', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -10,6 +10,13 @@ const MaterialType = sequelize.define('MaterialType', {
   name: {
     type: DataTypes.STRING(200),
     allowNull: false
+  },
+  stage_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  multiply_by_coefficient: {
+    type: DataTypes.BOOLEAN
   },
   created_at: {
     type: DataTypes.DATE
@@ -22,8 +29,8 @@ const MaterialType = sequelize.define('MaterialType', {
   }
 }, {
   schema: 'construction',
-  tableName: 'material_types',
+  tableName: 'stage_subsections',
   timestamps: false
 });
 
-module.exports = MaterialType;
+module.exports = StageSubsection;

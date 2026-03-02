@@ -22,7 +22,7 @@ WORKDIR /app
 COPY --from=builder /app /app
 
 # Указываем порт (для контейнера)
-EXPOSE 3000
+EXPOSE 3300
 
 # Устанавливаем команду запуска
 CMD ["node", "server.js"]

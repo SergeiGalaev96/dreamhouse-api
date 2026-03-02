@@ -19,6 +19,26 @@ const router = express.Router();
 
 /**
  * @swagger
+ * /api/documentFiles/files/{document_id}:
+ *   get:
+ *     summary: Получить список файлов документа
+ *     tags: [DocumentFiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: document_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Список файлов
+ */
+router.get('/files/:document_id', authenticateToken, getDocumentFiles);
+
+/**
+ * @swagger
  * /api/documentFiles/upload/{document_id}:
  *   post:
  *     summary: Загрузить файл в документ
@@ -51,27 +71,7 @@ router.post('/upload/:document_id',  authenticateToken, upload.single('file'), u
 
 /**
  * @swagger
- * /api/documentFiles/files/{document_id}:
- *   get:
- *     summary: Получить список файлов документа
- *     tags: [DocumentFiles]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: document_id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Список файлов
- */
-router.get('/files/:document_id', authenticateToken, getDocumentFiles);
-
-/**
- * @swagger
- * /api/documentFiles/download/{id}:
+ * /api/documentFiles/download/{file_id}:
  *   get:
  *     summary: Скачать файл
  *     tags: [DocumentFiles]
@@ -79,19 +79,19 @@ router.get('/files/:document_id', authenticateToken, getDocumentFiles);
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: file_id
  *         required: true
  *         schema:
  *           type: integer
  *     responses:
  *       200:
- *         description: Файл
+ *         description: ID Файла
  */
-router.get('/download/:id', authenticateToken, downloadDocumentFile);
+router.get('/download/:file_id', authenticateToken, downloadDocumentFile);
 
 /**
  * @swagger
- * /api/documentFiles/{id}:
+ * /api/documentFiles/{file_id}:
  *   delete:
  *     summary: Удалить файл документа
  *     tags: [DocumentFiles]
@@ -99,7 +99,7 @@ router.get('/download/:id', authenticateToken, downloadDocumentFile);
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: file_id
  *         required: true
  *         schema:
  *           type: integer
@@ -107,6 +107,6 @@ router.get('/download/:id', authenticateToken, downloadDocumentFile);
  *       200:
  *         description: Файл удалён
  */
-router.delete('/:id', authenticateToken, deleteDocumentFile);
+router.delete('/:file_id', authenticateToken, deleteDocumentFile);
 
 module.exports = router;

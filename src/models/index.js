@@ -1,8 +1,8 @@
 const sequelize = require('../config/database');
 
 // импорт моделей (КЛАССЫ, не функции)
-const MaterialStatement = require('./MaterialStatement');
-const MaterialStatementItem = require('./MaterialStatementItem');
+const MaterialEstimate = require('./MaterialEstimate');
+const MaterialEstimateItem = require('./MaterialEstimateItem');
 
 const MaterialRequest = require('./MaterialRequest');
 const MaterialRequestItem = require('./MaterialRequestItem');
@@ -26,15 +26,15 @@ const DocumentFile = require('./DocumentFile');
  * === АССОЦИАЦИИ ===
  */
 
-// MaterialStatement -> MaterialStatementItem
-MaterialStatement.hasMany(MaterialStatementItem, {
-  foreignKey: 'material_statement_id',
+// MaterialEstimate -> MaterialEstimateItem
+MaterialEstimate.hasMany(MaterialEstimateItem, {
+  foreignKey: 'material_estimate_id',
   as: 'items'
 });
 
-MaterialStatementItem.belongsTo(MaterialStatement, {
-  foreignKey: 'material_statement_id',
-  as: 'material_statement'
+MaterialEstimateItem.belongsTo(MaterialEstimate, {
+  foreignKey: 'material_estimate_id',
+  as: 'material_estimate'
 });
 
 // MaterialRequest -> MaterialRequestItem
@@ -119,8 +119,8 @@ DocumentFile.belongsTo(Document, {
 
 module.exports = {
   sequelize,
-  MaterialStatement,
-  MaterialStatementItem,
+  MaterialEstimate,
+  MaterialEstimateItem,
   MaterialRequest,
   MaterialRequestItem,
   Material,

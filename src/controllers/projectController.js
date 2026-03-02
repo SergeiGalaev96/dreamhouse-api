@@ -184,7 +184,6 @@ const updateProject = async (req, res) => {
   }
 };
 
-
 const deleteProject = async (req, res) => {
   try {
     const { id } = req.params;

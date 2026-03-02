@@ -4,13 +4,43 @@ const { Document, DocumentFile } = require('../models');
 
 const UPLOAD_ROOT = path.resolve(__dirname, '..', '..', 'documents');
 
+
+const getDocumentFiles = async (req, res) => {
+  try {
+    const documentId = Number(req.params.document_id);
+
+    const files = await DocumentFile.findAll({
+      where: {
+        document_id: documentId,
+        deleted: false
+      },
+      order: [['id', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: files
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Ошибка при получении файлов',
+      error: error.message
+    });
+  }
+};
+
+function fixEncoding(str) {
+  return Buffer.from(str, 'latin1').toString('utf8');
+}
 function sanitizeFileName(name) {
   return name
     .replace(/[\/\\]/g, '_')
     .replace(/\s+/g, '_')
-    .replace(/[^a-zA-Z0-9а-яА-Я._-]/g, '');
-};
-
+    .replace(/[^\p{L}\p{N}._-]/gu, '')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
 const uploadDocumentFile = async (req, res) => {
   try {
     const documentId = Number(req.params.document_id);
@@ -45,6 +75,12 @@ const uploadDocumentFile = async (req, res) => {
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+
+      // Excel
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+
+      // Images
       'image/jpeg',
       'image/png',
       'image/webp'
@@ -58,13 +94,15 @@ const uploadDocumentFile = async (req, res) => {
     }
 
     // 4️⃣ Имя файла
-    const originalName = sanitizeFileName(req.file.originalname);
+    const originalName = fixEncoding(req.file.originalname);
+    const safeName = sanitizeFileName(originalName);
+    // const originalName = sanitizeFileName(req.file.originalname);
 
     // 5️⃣ Проверка дубликата
     const exists = await DocumentFile.findOne({
       where: {
         document_id: documentId,
-        name: originalName,
+        name: safeName,
         deleted: false
       }
     });
@@ -83,11 +121,11 @@ const uploadDocumentFile = async (req, res) => {
     }
 
     // 7️⃣ ФИЗИЧЕСКИЙ путь (ТОЛЬКО для fs)
-    const physicalPath = path.join(documentDir, originalName);
+    const physicalPath = path.join(documentDir, safeName);
 
     // 8️⃣ ОТНОСИТЕЛЬНЫЙ путь (ТОЛЬКО в БД)
     const relativePath = path
-      .join(String(documentId), originalName)
+      .join(String(documentId), safeName)
       .replace(/\\/g, '/');
 
     // 9️⃣ Перемещаем файл
@@ -96,7 +134,7 @@ const uploadDocumentFile = async (req, res) => {
     // 🔟 Запись в БД
     const file = await DocumentFile.create({
       document_id: documentId,
-      name: originalName,
+      name: safeName,
       file_path: relativePath,
       mime_type: req.file.mimetype,
       file_size: req.file.size,
@@ -124,37 +162,11 @@ const uploadDocumentFile = async (req, res) => {
   }
 };
 
-
-const getDocumentFiles = async (req, res) => {
-  try {
-    const documentId = Number(req.params.document_id);
-
-    const files = await DocumentFile.findAll({
-      where: {
-        document_id: documentId,
-        deleted: false
-      },
-      order: [['id', 'ASC']]
-    });
-
-    res.json({
-      success: true,
-      data: files
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Ошибка при получении файлов',
-      error: error.message
-    });
-  }
-};
-
 const downloadDocumentFile = async (req, res) => {
   try {
-    const fileId = Number(req.params.id);
+    const file_id = Number(req.params.file_id);
 
-    const file = await DocumentFile.findByPk(fileId);
+    const file = await DocumentFile.findByPk(file_id);
     if (!file || file.deleted) {
       return res.status(404).json({ message: 'Файл не найден' });
     }
@@ -190,9 +202,9 @@ const downloadDocumentFile = async (req, res) => {
 
 const deleteDocumentFile = async (req, res) => {
   try {
-    const fileId = Number(req.params.id);
+    const file_id = Number(req.params.file_id);
 
-    const file = await DocumentFile.findByPk(fileId);
+    const file = await DocumentFile.findByPk(file_id);
     if (!file || file.deleted) {
       return res.status(404).json({ message: 'Файл не найден' });
     }

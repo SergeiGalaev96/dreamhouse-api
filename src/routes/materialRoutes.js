@@ -54,8 +54,6 @@ router.get('/gets', authenticateToken, getAllMaterials);
  *             properties:
  *               name:
  *                 type: string
- *               code:
- *                 type: string
  *               description:
  *                 type: string
  *               type:
@@ -121,9 +119,6 @@ router.get('/getById/:id', authenticateToken, getMaterialById);
  *               - name
  *               - unit_of_measure
  *             properties:
- *               code:
- *                 type: string
- *                 description: Код материала
  *               name:
  *                 type: string
  *                 description: Название материала
@@ -133,6 +128,10 @@ router.get('/getById/:id', authenticateToken, getMaterialById);
  *               unit_of_measure:
  *                 type: integer
  *                 description: Единица измерения
+ *               coeffitient:
+ *                 type: number
+ *                 format: double
+ *                 description: Коэффициент М3, М2 * 
  *               description:
  *                 type: string
  *                 description: Описание материала
@@ -146,7 +145,7 @@ router.get('/getById/:id', authenticateToken, getMaterialById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, authorizeRole(1, 2, 3), validateMaterial, createMaterial);
+router.post('/create', authenticateToken, createMaterial);
 
 /**
  * @swagger
@@ -170,8 +169,6 @@ router.post('/create', authenticateToken, authorizeRole(1, 2, 3), validateMateri
  *           schema:
  *             type: object
  *             properties:
- *               code:
- *                 type: string
  *               name:
  *                 type: string
  *               type:

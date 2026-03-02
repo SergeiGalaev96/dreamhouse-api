@@ -11,19 +11,31 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const userRoleRoutes = require('./routes/userRoleRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
-
+// Объекты
 const projectRoutes = require('./routes/projectRoutes');
 const projectTypeRoutes = require('./routes/projectTypeRoutes');
 const projectStatusRoutes = require('./routes/projectStatusRoutes');
 const projectStageRoutes = require('./routes/projectStageRoutes');
 const projectStageStatusRoutes = require('./routes/projectStageStatusRoutes');
+// Блоки объекта
+const projectBlockRoutes = require('./routes/projectBlockRoutes');
+// Этапы блока
+const blockStageRoutes = require('./routes/blockStageRoutes');
+// Подэтапы этапа
+const stageSubsectionRoutes = require('./routes/stageSubsectionRoutes');
+
 // Материалы
 const materialRoutes = require('./routes/materialRoutes');
 const materialTypeRoutes = require('./routes/materialTypeRoutes');
 const unitOfMeasureRoutes = require('./routes/unitOfMeasureRoutes');
-// Ведомость материалов
-const materialStatementRoutes = require('./routes/materialStatementRoutes');
-const materialStatementItemRoutes = require('./routes/materialStatementItemRoutes');
+// Услуги
+const serviceRoutes = require('./routes/serviceRoutes');
+const serviceTypeRoutes = require('./routes/serviceTypeRoutes');
+// Смета материалов
+const materialEstimateRoutes = require('./routes/materialEstimateRoutes');
+const materialEstimateItemRoutes = require('./routes/materialEstimateItemRoutes');
+const materialEstimateItemTypeRoutes = require('./routes/materialEstimateItemTypeRoutes');
+
 
 
 // Заявки на материалы
@@ -63,6 +75,9 @@ const documentFileRoutes = require('./routes/documentFileRoutes');
 const workTeamRoutes = require('./routes/workTeamRoutes');
 const teamMemberRoutes = require('./routes/teamMemberRoutes');
 
+const generalStatusRoutes = require('./routes/generalStatusRoutes');
+
+
 const app = express();
 
 // Middleware
@@ -93,8 +108,8 @@ const getLocalIp = () => {
 };
 
 const localIp = getLocalIp();
-const SWAGGER_IP = process.env.IP || 'http://77.235.27.71';
-const SWAGGER_PORT = process.env.PORT || 4000;
+const SWAGGER_IP = process.env.IP;
+const SWAGGER_PORT = process.env.PORT;
 
 // Swagger конфигурация
 const swaggerOptions = {
@@ -146,13 +161,30 @@ app.use('/api/projectTypes', projectTypeRoutes);
 app.use('/api/projectStatuses', projectStatusRoutes);
 app.use('/api/projectStages', projectStageRoutes);
 app.use('/api/projectStageStatuses', projectStageStatusRoutes);
+
+// Блоки объекта
+app.use('/api/projectBlocks', projectBlockRoutes);
+// Этапы блока
+app.use('/api/blockStages', blockStageRoutes);
+// Подэтапы этапа
+app.use('/api/stageSubsections', stageSubsectionRoutes);
+
+// Смета материалов
+app.use('/api/materialEstimates', materialEstimateRoutes);
+app.use('/api/materialEstimateItems', materialEstimateItemRoutes);
+app.use('/api/materialEstimateItemTypes', materialEstimateItemTypeRoutes);
+
+
 // Материалы
 app.use('/api/materials', materialRoutes);
 app.use('/api/materialTypes', materialTypeRoutes);
 app.use('/api/unitsOfMeasure', unitOfMeasureRoutes);
-// Ведомость материалов
-app.use('/api/materialStatements', materialStatementRoutes);
-app.use('/api/materialStatementItems', materialStatementItemRoutes);
+
+// Услуги
+app.use('/api/services', serviceRoutes);
+app.use('/api/serviceTypes', serviceTypeRoutes);
+
+
 
 // Заявки на материалы
 app.use('/api/materialRequests', materialRequestRoutes);
@@ -190,6 +222,8 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/documentStages', documentStageRoutes);
 app.use('/api/documentStatuses', documentStatusRoutes);
 app.use('/api/documentFiles', documentFileRoutes);
+// Общие статусы
+app.use('/api/generalStatuses', generalStatusRoutes);
 
 
 // Обработка 404

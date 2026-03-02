@@ -7,11 +7,6 @@ const Material = sequelize.define('Material', {
     primaryKey: true,
     autoIncrement: true
   },
-  code: {
-    type: DataTypes.STRING(50),
-    allowNull: true,
-    unique: true
-  },
   name: {
     type: DataTypes.STRING(200),
     allowNull: false
@@ -23,6 +18,10 @@ const Material = sequelize.define('Material', {
   unit_of_measure: {
     type: DataTypes.INTEGER,
     allowNull: false
+  },
+  coefficient: {
+    type: DataTypes.DECIMAL,
+    allowNull: true
   },
   description: {
     type: DataTypes.TEXT,

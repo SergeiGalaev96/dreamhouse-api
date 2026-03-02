@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-const MaterialType = sequelize.define('MaterialType', {
+const ServiceType = sequelize.define('ServiceTypeType', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -22,8 +22,8 @@ const MaterialType = sequelize.define('MaterialType', {
   }
 }, {
   schema: 'construction',
-  tableName: 'material_types',
+  tableName: 'service_types',
   timestamps: false
 });
 
-module.exports = MaterialType;
+module.exports = ServiceType;

@@ -129,28 +129,47 @@ router.get('/getById/:id', authenticateToken, getDocumentById);
  *           schema:
  *             type: object
  *             required:
- *               - document_name
- *               - document_type
+ *               - name
  *             properties:
- *               document_name:
- *                 type: string
- *                 description: Название документа
- *               document_date:
- *                 type: string
- *                 format: date
- *                 description: Дата документа
  *               project_id:
  *                 type: integer
+ *                 nullable: true
+ *                 example: 12
  *                 description: ID проекта
- *               status:
- *                 type: string
- *                 description: Статус документа
- *               version:
+ *               stage_id:
  *                 type: integer
- *                 description: Версия документа
+ *                 example: 1
+ *                 description: ID этапа
+ *               name:
+ *                 type: string
+ *                 maxLength: 200
+ *                 example: Модернизация объекта
+ *                 description: Название документа
+ *               status:
+ *                 type: integer
+ *                 example: 1
+ *                 description: Статус документа
+ *               price:
+ *                 type: number
+ *                 format: decimal
+ *                 example: 15000.50
+ *                 description: Стоимость
  *               description:
  *                 type: string
+ *                 nullable: true
+ *                 example: Техническая документация
  *                 description: Описание документа
+ *               deadline:
+ *                 type: string
+ *                 nullable: true
+ *                 example: 2026-03-01
+ *                 description: Срок выполнения
+ *               responsible_users:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 example: [1, 5, 12]
+ *                 description: ID ответственных пользователей
  *     responses:
  *       201:
  *         description: Документ успешно создан
@@ -162,6 +181,7 @@ router.get('/getById/:id', authenticateToken, getDocumentById);
  *         description: Ошибка сервера
  */
 router.post('/create', authenticateToken, createDocument);
+
 
 /**
  * @swagger
@@ -187,15 +207,46 @@ router.post('/create', authenticateToken, createDocument);
  *             properties:
  *               project_id:
  *                 type: integer
- *               status:
- *                 type: string
- *               version:
+ *                 nullable: true
+ *                 example: 15
+ *                 description: ID проекта
+ *               stage_id:
  *                 type: integer
+ *                 example: 2
+ *                 description: ID этапа
+ *               name:
+ *                 type: string
+ *                 maxLength: 200
+ *                 example: Обновлённое название документа
+ *                 description: Название документа
+ *               status:
+ *                 type: integer
+ *                 example: 2
+ *                 description: Статус документа
+ *               price:
+ *                 type: number
+ *                 format: decimal
+ *                 example: 21000.00
+ *                 description: Стоимость
  *               description:
  *                 type: string
+ *                 nullable: true
+ *                 example: Обновлённое описание
+ *                 description: Описание документа
+ *               deadline:
+ *                 type: string
+ *                 nullable: true
+ *                 example: 2026-04-15
+ *                 description: Срок выполнения
+ *               responsible_users:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 example: [3, 7]
+ *                 description: ID ответственных пользователей
  *     responses:
  *       200:
- *         description: Документ успешно обновлен
+ *         description: Документ успешно обновлён
  *       401:
  *         description: Неавторизованный доступ
  *       404:

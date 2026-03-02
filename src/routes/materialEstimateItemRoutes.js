@@ -2,46 +2,46 @@ const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
 
 const {
-  getAllMaterialStatementItems,
-  getMaterialStatementItemById,
-  createMaterialStatementItem,
-  updateMaterialStatementItem,
-  deleteMaterialStatementItem
-} = require('../controllers/materialStatementItemController');
+  getAllMaterialEstimateItems,
+  getMaterialEstimateItemById,
+  createMaterialEstimateItem,
+  updateMaterialEstimateItem,
+  deleteMaterialEstimateItem
+} = require('../controllers/materialEstimateItemController');
 
 const router = express.Router();
 
 /**
  * @swagger
  * tags:
- *   name: MaterialStatementItems
- *   description: API для управления позициями ведомостей материалов
+ *   name: MaterialEstimateItems
+ *   description: API для управления позициями смет материалов
  */
 
 /**
  * @swagger
- * /api/materialStatementItems/gets:
+ * /api/materialEstimateItems/gets:
  *   get:
- *     summary: Получение списка позиций ведомостей материалов
- *     tags: [MaterialStatementItems]
+ *     summary: Получение списка позиций смет материалов
+ *     tags: [MaterialEstimateItems]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Позиции ведомостей материалов
+ *         description: Позиции смет материалов
  *       401:
  *         description: Неавторизованный доступ
  *       500:
  *         description: Ошибка сервера
  */
-router.get('/gets', authenticateToken, getAllMaterialStatementItems);
+router.get('/gets', authenticateToken, getAllMaterialEstimateItems);
 
 /**
  * @swagger
- * /api/materialStatementItems/getById/{id}:
+ * /api/materialEstimateItems/getById/{id}:
  *   get:
- *     summary: Получение позиции ведомости по ID
- *     tags: [MaterialStatementItems]
+ *     summary: Получение позиции сметы по ID
+ *     tags: [MaterialEstimateItems]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -50,23 +50,23 @@ router.get('/gets', authenticateToken, getAllMaterialStatementItems);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID позиции ведомости
+ *         description: ID позиции сметы
  *     responses:
  *       200:
- *         description: Данные позиции ведомости
+ *         description: Данные позиции сметы
  *       404:
- *         description: Позиция ведомости не найдена
+ *         description: Позиция сметы не найдена
  *       500:
  *         description: Ошибка сервера
  */
-router.get('/getById/:id', authenticateToken, getMaterialStatementItemById);
+router.get('/getById/:id', authenticateToken, getMaterialEstimateItemById);
 
 /**
  * @swagger
- * /api/materialStatementItems/create:
+ * /api/materialEstimateItems/create:
  *   post:
- *     summary: Создание позиции ведомости материалов
- *     tags: [MaterialStatementItems]
+ *     summary: Создание позиции сметы материалов
+ *     tags: [MaterialEstimateItems]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -76,13 +76,20 @@ router.get('/getById/:id', authenticateToken, getMaterialStatementItemById);
  *           schema:
  *             type: object
  *             required:
- *               - material_statement_id
+ *               - material_estimate_id
+ *               - subsection_id
  *               - material_type
  *               - material_id
  *               - unit_of_measure
  *               - quantity_planned
  *             properties:
- *               material_statement_id:
+ *               material_estimate_id:
+ *                 type: integer
+ *                 example: 1
+ *               subsection_id:
+ *                 type: integer
+ *                 example: 1
+ *               item_type:
  *                 type: integer
  *                 example: 1
  *               material_type:
@@ -97,25 +104,28 @@ router.get('/getById/:id', authenticateToken, getMaterialStatementItemById);
  *               quantity_planned:
  *                 type: number
  *                 example: 120
+ *               coefficient:
+ *                 type: number
+ *                 example: 1.5
  *               comment:
  *                 type: string
  *                 example: На фундамент
  *     responses:
  *       201:
- *         description: Позиция ведомости успешно создана
+ *         description: Позиция сметы успешно создана
  *       400:
  *         description: Ошибка валидации
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, createMaterialStatementItem);
+router.post('/create', authenticateToken, createMaterialEstimateItem);
 
 /**
  * @swagger
- * /api/materialStatementItems/update/{id}:
+ * /api/materialEstimateItems/update/{id}:
  *   put:
- *     summary: Обновление позиции ведомости материалов
- *     tags: [MaterialStatementItems]
+ *     summary: Обновление позиции сметы материалов
+ *     tags: [MaterialEstimateItems]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -124,7 +134,7 @@ router.post('/create', authenticateToken, createMaterialStatementItem);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID позиции ведомости
+ *         description: ID позиции сметы
  *     requestBody:
  *       required: true
  *       content:
@@ -133,20 +143,20 @@ router.post('/create', authenticateToken, createMaterialStatementItem);
  *             type: object
  *     responses:
  *       200:
- *         description: Позиция ведомости успешно обновлена
+ *         description: Позиция сметы успешно обновлена
  *       404:
- *         description: Позиция ведомости не найдена
+ *         description: Позиция сметы не найдена
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, updateMaterialStatementItem);
+router.put('/update/:id', authenticateToken, updateMaterialEstimateItem);
 
 /**
  * @swagger
- * /api/materialStatementItems/delete/{id}:
+ * /api/materialEstimateItems/delete/{id}:
  *   delete:
- *     summary: Удаление позиции ведомости материалов
- *     tags: [MaterialStatementItems]
+ *     summary: Удаление позиции сметы материалов
+ *     tags: [MaterialEstimateItems]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -155,15 +165,15 @@ router.put('/update/:id', authenticateToken, updateMaterialStatementItem);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID позиции ведомости
+ *         description: ID позиции сметы
  *     responses:
  *       200:
- *         description: Позиция ведомости успешно удалена
+ *         description: Позиция сметы успешно удалена
  *       404:
- *         description: Позиция ведомости не найдена
+ *         description: Позиция сметы не найдена
  *       500:
  *         description: Ошибка сервера
  */
-router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteMaterialStatementItem);
+router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteMaterialEstimateItem);
 
 module.exports = router;

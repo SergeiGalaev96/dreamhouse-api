@@ -1,15 +1,15 @@
 const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-class MaterialStatement extends Model { }
+class MaterialEstimate extends Model { }
 
-MaterialStatement.init({
+MaterialEstimate.init({
 	id: {
 		type: DataTypes.INTEGER,
 		primaryKey: true,
 		autoIncrement: true
 	},
-	project_id: {
+	block_id: {
 		type: DataTypes.INTEGER,
 		allowNull: false
 	},
@@ -31,21 +31,21 @@ MaterialStatement.init({
 		allowNull: true
 	},
 	created_at: {
-    type: DataTypes.DATE
-  },
-  updated_at: {
-    type: DataTypes.DATE
-  },
-  deleted: {
-    type: DataTypes.BOOLEAN
-  }
+		type: DataTypes.DATE
+	},
+	updated_at: {
+		type: DataTypes.DATE
+	},
+	deleted: {
+		type: DataTypes.BOOLEAN
+	}
 },
 	{
 		sequelize,
 		schema: 'construction',
-		tableName: 'material_statements',
+		tableName: 'material_estimates',
 		timestamps: false
 	}
 );
 
-module.exports = MaterialStatement;
+module.exports = MaterialEstimate;
