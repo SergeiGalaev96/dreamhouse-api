@@ -1,8 +1,16 @@
 const sequelize = require('../config/database');
 
-// импорт моделей (КЛАССЫ, не функции)
+// импорт моделей
 const MaterialEstimate = require('./MaterialEstimate');
 const MaterialEstimateItem = require('./MaterialEstimateItem');
+
+const WorkPerformed = require('./WorkPerformed');
+const WorkPerformedItem = require('./WorkPerformedItem');
+
+const Project = require('./Project');
+const ProjectBlock = require('./ProjectBlock');
+const BlockStage = require('./BlockStage');
+const StageSubsection = require('./StageSubsection');
 
 const MaterialRequest = require('./MaterialRequest');
 const MaterialRequestItem = require('./MaterialRequestItem');
@@ -13,6 +21,10 @@ const UnitOfMeasure = require('./UnitOfMeasure');
 const PurchaseOrderItem = require('./PurchaseOrderItem');
 const PurchaseOrder = require('./PurchaseOrder');
 
+const Supplier = require('./Supplier');
+const SupplierRating = require('./SupplierRating');
+
+
 const Currency = require('./Currency');
 const CurrencyRate = require('./CurrencyRate');
 
@@ -22,11 +34,14 @@ const Warehouse = require('./Warehouse');
 const Document = require('./Document');
 const DocumentFile = require('./DocumentFile');
 
+
 /**
- * === АССОЦИАЦИИ ===
+ * ================================
+ * ESTIMATE
+ * ================================
  */
 
-// MaterialEstimate -> MaterialEstimateItem
+// MaterialEstimate → MaterialEstimateItem
 MaterialEstimate.hasMany(MaterialEstimateItem, {
   foreignKey: 'material_estimate_id',
   as: 'items'
@@ -37,7 +52,99 @@ MaterialEstimateItem.belongsTo(MaterialEstimate, {
   as: 'material_estimate'
 });
 
-// MaterialRequest -> MaterialRequestItem
+/**
+ * ================================
+ * PROJECT STRUCTURE
+ * ================================
+ */
+
+// Project → ProjectBlock
+Project.hasMany(ProjectBlock, {
+  foreignKey: 'project_id',
+  as: 'blocks'
+});
+
+ProjectBlock.belongsTo(Project, {
+  foreignKey: 'project_id',
+  as: 'project'
+});
+
+// ProjectBlock → MaterialEstimate
+ProjectBlock.hasMany(MaterialEstimate, {
+  foreignKey: 'block_id',
+  as: 'estimates'
+});
+
+MaterialEstimate.belongsTo(ProjectBlock, {
+  foreignKey: 'block_id',
+  as: 'block'
+});
+
+
+/**
+ * ================================
+ * WORK PERFORMED
+ * ================================
+ */
+
+// WorkPerformed → WorkPerformedItem
+WorkPerformed.hasMany(WorkPerformedItem, {
+  foreignKey: 'work_performed_id',
+  as: 'items'
+});
+
+WorkPerformedItem.belongsTo(WorkPerformed, {
+  foreignKey: 'work_performed_id',
+  as: 'work_performed'
+});
+
+// MaterialEstimateItem → WorkPerformedItem
+MaterialEstimateItem.hasMany(WorkPerformedItem, {
+  foreignKey: 'material_estimate_item_id',
+  as: 'performed_items'
+});
+
+WorkPerformedItem.belongsTo(MaterialEstimateItem, {
+  foreignKey: 'material_estimate_item_id',
+  as: 'estimate_item'
+});
+
+
+/**
+ * ================================
+ * BLOCK STRUCTURE
+ * ================================
+ */
+
+// ProjectBlock → BlockStage
+ProjectBlock.hasMany(BlockStage, {
+  foreignKey: 'block_id',
+  as: 'stages'
+});
+
+BlockStage.belongsTo(ProjectBlock, {
+  foreignKey: 'block_id',
+  as: 'block'
+});
+
+// BlockStage → StageSubsection
+BlockStage.hasMany(StageSubsection, {
+  foreignKey: 'stage_id',
+  as: 'subsections'
+});
+
+StageSubsection.belongsTo(BlockStage, {
+  foreignKey: 'stage_id',
+  as: 'stage'
+});
+
+
+/**
+ * ================================
+ * MATERIAL REQUEST
+ * ================================
+ */
+
 MaterialRequest.hasMany(MaterialRequestItem, {
   foreignKey: 'material_request_id',
   as: 'items'
@@ -48,19 +155,25 @@ MaterialRequestItem.belongsTo(MaterialRequest, {
   as: 'material_request'
 });
 
-// MaterialRequestItem -> Material
+// MaterialRequestItem → Material
 MaterialRequestItem.belongsTo(Material, {
   foreignKey: 'material_id',
   as: 'material'
 });
 
-// MaterialRequestItem -> UnitOfMeasure
+// MaterialRequestItem → UnitOfMeasure
 MaterialRequestItem.belongsTo(UnitOfMeasure, {
   foreignKey: 'unit_of_measure',
   as: 'unit'
 });
 
-// MaterialRequestItem -> PurchaseOrderItem
+
+/**
+ * ================================
+ * PURCHASE ORDER
+ * ================================
+ */
+
 MaterialRequestItem.hasMany(PurchaseOrderItem, {
   foreignKey: 'material_request_item_id',
   as: 'purchase_order_items'
@@ -71,7 +184,6 @@ PurchaseOrderItem.belongsTo(MaterialRequestItem, {
   as: 'material_request_item'
 });
 
-// PurchaseOrder → PurchaseOrderItem
 PurchaseOrder.hasMany(PurchaseOrderItem, {
   foreignKey: 'purchase_order_id',
   as: 'items'
@@ -82,20 +194,45 @@ PurchaseOrderItem.belongsTo(PurchaseOrder, {
   as: 'purchase_order'
 });
 
+/**
+ * ================================
+ * SUPPLIER RATING
+ * ================================
+ */
+Supplier.hasMany(SupplierRating, {
+  foreignKey: "supplier_id",
+  as: "ratings"
+});
 
-Currency.associate = models => {
-  Currency.hasMany(models.CurrencyRate, {
-    foreignKey: 'currency_id'
-  });
-};
-CurrencyRate.associate = models => {
-  CurrencyRate.belongsTo(models.Currency, {
-    foreignKey: 'currency_id',
-    as: 'currency'
-  });
-};
+SupplierRating.belongsTo(Supplier, {
+  foreignKey: "supplier_id",
+  as: "supplier"
+});
 
-// Warehouse → WarehouseStock
+
+/**
+ * ================================
+ * CURRENCY
+ * ================================
+ */
+
+Currency.hasMany(CurrencyRate, {
+  foreignKey: 'currency_id',
+  as: 'rates'
+});
+
+CurrencyRate.belongsTo(Currency, {
+  foreignKey: 'currency_id',
+  as: 'currency'
+});
+
+
+/**
+ * ================================
+ * WAREHOUSE
+ * ================================
+ */
+
 Warehouse.hasMany(WarehouseStock, {
   foreignKey: 'warehouse_id',
   as: 'items'
@@ -106,7 +243,13 @@ WarehouseStock.belongsTo(Warehouse, {
   as: 'warehouse'
 });
 
-// Document → DocumentFile
+
+/**
+ * ================================
+ * DOCUMENTS
+ * ================================
+ */
+
 Document.hasMany(DocumentFile, {
   foreignKey: 'document_id',
   as: 'files'
@@ -114,19 +257,28 @@ Document.hasMany(DocumentFile, {
 
 DocumentFile.belongsTo(Document, {
   foreignKey: 'document_id',
-  as: 'file'
+  as: 'document'
 });
+
 
 module.exports = {
   sequelize,
   MaterialEstimate,
   MaterialEstimateItem,
+  WorkPerformed,
+  WorkPerformedItem,
+  Project,
+  ProjectBlock,
+  BlockStage,
+  StageSubsection,
   MaterialRequest,
   MaterialRequestItem,
   Material,
   UnitOfMeasure,
-  PurchaseOrderItem,
   PurchaseOrder,
+  PurchaseOrderItem,
+  Supplier,
+  SupplierRating,
   Currency,
   CurrencyRate,
   Warehouse,

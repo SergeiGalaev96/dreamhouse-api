@@ -28,6 +28,14 @@ PurchaseOrderItem.init({
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  currency: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  currency_rate: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   price: {
     type: DataTypes.DECIMAL,
     allowNull: false
@@ -43,6 +51,10 @@ PurchaseOrderItem.init({
   delivered_quantity: {
     type: DataTypes.DECIMAL,
     allowNull: true
+  },
+  supplier_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
   
   created_at: DataTypes.DATE,

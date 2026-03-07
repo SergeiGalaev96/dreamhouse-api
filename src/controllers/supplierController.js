@@ -1,52 +1,104 @@
-const Supplier = require('../models/Supplier');
-const { Op } = require("sequelize");
-const { Sequelize } = require('sequelize');
+const { Supplier, SupplierRating } = require('../models');
+const { Op, Sequelize } = require("sequelize");
 const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllSuppliers = async (req, res) => {
   try {
+
     const whereClause = { deleted: false };
 
     const { count, rows } = await Supplier.findAndCountAll({
+
       where: whereClause,
-      order: [['created_at', 'DESC']]
+
+      order: [["created_at", "DESC"]],
+
+      attributes: {
+        include: [
+
+          [
+            Sequelize.literal(`ROUND(AVG(ratings.quality)::numeric,2)::float`),
+            "avg_quality"
+          ],
+
+          [
+            Sequelize.literal(`ROUND(AVG(ratings.time)::numeric,2)::float`),
+            "avg_time"
+          ],
+
+          [
+            Sequelize.literal(`ROUND(AVG(ratings.price)::numeric,2)::float`),
+            "avg_price"
+          ],
+
+          [
+            Sequelize.literal(`
+              ROUND(
+                (
+                  COALESCE(AVG(ratings.quality),0) +
+                  COALESCE(AVG(ratings.time),0) +
+                  COALESCE(AVG(ratings.price),0)
+                ) / 3
+              ,2)::float
+            `),
+            "avg_rating"
+          ],
+
+          [
+            Sequelize.literal(`COUNT(ratings.id)`),
+            "ratings_count"
+          ]
+
+        ]
+      },
+
+      include: [
+        {
+          model: SupplierRating,
+          as: "ratings",     // ← ОБЯЗАТЕЛЬНО
+          attributes: [],
+          required: false
+        }
+      ],
+
+      group: ["Supplier.id"]
+
     });
 
     res.json({
       success: true,
       data: rows,
       pagination: {
-        total: count
+        total: Array.isArray(count) ? count.length : count
       }
     });
+
   } catch (error) {
+
+    console.error("Ошибка получения поставщиков:", error);
+
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при получении поставщиков',
+      message: "Ошибка сервера при получении поставщиков",
       error: error.message
     });
+
   }
 };
 
 const searchSuppliers = async (req, res) => {
   try {
-    const {
-      search,
-      // name,
-      // inn,
-      // address,
-      // phone,
-      page = 1,
-      size = 10
-    } = req.body;
 
-    const offset = (page - 1) * size;
+    const { search, page = 1, size = 10 } = req.body;
+
+    const limit = Number(size);
+    const offset = (Number(page) - 1) * limit;
+
     const whereClause = { deleted: false };
-
-
 
     if (search && search.trim() !== "") {
       const s = `%${search.trim()}%`;
+
       whereClause[Op.or] = [
         { name: { [Op.iLike]: s } },
         { address: { [Op.iLike]: s } },
@@ -54,58 +106,98 @@ const searchSuppliers = async (req, res) => {
         { email: { [Op.iLike]: s } },
         { inn: { [Op.iLike]: s } },
         { kpp: { [Op.iLike]: s } },
-        { ogrn: { [Op.iLike]: s } },
+        { ogrn: { [Op.iLike]: s } }
       ];
     }
-    // if (name)
-    //   whereClause.name = { [Op.iLike]: `%${name}%` };
-
-    // if (inn)
-    //   whereClause.inn = { [Op.iLike]: `%${inn}%` };
-
-    // if (address)
-    //   whereClause.address = { [Op.iLike]: `%${address}%` };
-
-    // if (status)
-    //   whereClause.status = status;
-
-    // if (type)
-    //   whereClause.type = type;
-
-
-    // if (start_date_from || start_date_to) {
-    //   whereClause.start_date = {};
-    //   if (start_date_from) whereClause.start_date[Op.gte] = start_date_from;
-    //   if (start_date_to) whereClause.start_date[Op.lte] = start_date_to;
-    // }
 
     const { count, rows } = await Supplier.findAndCountAll({
+
       where: whereClause,
-      limit: Number(size),
-      offset: Number(offset),
-      order: [['created_at', 'DESC']]
+
+      limit,
+      offset,
+
+      subQuery: false,   // ← ВАЖНО
+
+      order: [["created_at", "DESC"]],
+
+      attributes: {
+        include: [
+
+          [
+            Sequelize.literal(`ROUND(AVG(ratings.quality)::numeric,2)::float`),
+            "avg_quality"
+          ],
+
+          [
+            Sequelize.literal(`ROUND(AVG(ratings.time)::numeric,2)::float`),
+            "avg_time"
+          ],
+
+          [
+            Sequelize.literal(`ROUND(AVG(ratings.price)::numeric,2)::float`),
+            "avg_price"
+          ],
+
+          [
+            Sequelize.literal(`
+              ROUND(
+                (
+                  COALESCE(AVG(ratings.quality),0) +
+                  COALESCE(AVG(ratings.time),0) +
+                  COALESCE(AVG(ratings.price),0)
+                ) / 3
+              ,2)::float
+            `),
+            "avg_rating"
+          ],
+
+          [
+            Sequelize.literal(`COUNT(ratings.id)`),
+            "ratings_count"
+          ]
+
+        ]
+      },
+
+      include: [
+        {
+          model: SupplierRating,
+          as: "ratings",     // обязательно
+          attributes: [],
+          required: false
+        }
+      ],
+
+      group: ["Supplier.id"]
+
     });
+
+    const total = Array.isArray(count) ? count.length : count;
 
     res.json({
       success: true,
       data: rows,
       pagination: {
         page: Number(page),
-        size: Number(size),
-        total: count,
-        pages: Math.ceil(count / size),
-        hasNext: page * size < count,
+        size: limit,
+        total,
+        pages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
         hasPrev: page > 1
       }
     });
 
   } catch (error) {
+
     console.error("Ошибка при поиске поставщиков:", error);
+
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при поиске поставщиков",
-      error: error.message,
+      error: error.message
     });
+
   }
 };
 

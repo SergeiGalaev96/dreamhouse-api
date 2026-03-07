@@ -40,10 +40,6 @@ const Supplier = sequelize.define('Supplier', {
     type: DataTypes.STRING(100),
     allowNull: true
   },
-  rating: {
-    type: DataTypes.DECIMAL(3,2),
-    allowNull: true
-  },
   deleted: {
     type: DataTypes.BOOLEAN,
     defaultValue: false

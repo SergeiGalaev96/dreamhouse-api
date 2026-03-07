@@ -54,9 +54,6 @@ router.get('/gets', authenticateToken, getAllPurchaseOrders);
  *               project_id:
  *                 type: integer
  *                 default: 1
- *               supplier_id:
- *                 type: integer
- *                 default: 1
  *               created_user_id:
  *                 type: integer
  *                 default: 1
@@ -120,7 +117,6 @@ router.get('/getById/:id', authenticateToken, getPurchaseOrderById);
  *             type: object
  *             required:
  *               - project_id
- *               - supplier_id
  *               - created_user_id
  *               - items
  *             properties:
@@ -128,11 +124,6 @@ router.get('/getById/:id', authenticateToken, getPurchaseOrderById);
  *                 type: integer
  *                 example: 1
  *                 description: ID проекта
- *
- *               supplier_id:
- *                 type: integer
- *                 example: 5
- *                 description: ID поставщика
  * 
  *               created_user_id:
  *                 type: integer

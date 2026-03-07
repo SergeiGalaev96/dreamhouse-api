@@ -49,7 +49,7 @@ const sequelize = new Sequelize(
     },
 
     pool: {
-      max: 5,
+      max: 15,
       min: 0,
       acquire: 30000,
       idle: 10000

@@ -1,9 +1,5 @@
 const { Op, fn, col, literal } = require('sequelize');
-const {
-  sequelize,
-  MaterialEstimate,
-  MaterialEstimateItem
-} = require('../models');
+const { sequelize, MaterialEstimate, MaterialEstimateItem } = require('../models');
 
 const updateWithAudit = require('../utils/updateWithAudit');
 
@@ -63,62 +59,22 @@ const searchMaterialEstimates = async (req, res) => {
       col: 'id',
       limit: Number(size),
       offset: Number(offset),
-      order: [
-        ['created_at', 'DESC'],
-        [{ model: MaterialEstimateItem, as: 'items' }, 'item_type', 'ASC']
-      ],
+      order: [['created_at', 'DESC']],
       include: [
         {
           model: MaterialEstimateItem,
           as: 'items',
           where: { deleted: false },
-          required: false
+          required: false,
+          separate: true,
+          order: [['item_type', 'ASC']]
         }
       ]
     });
 
-    /* ============================================
-       🔹 Подсчёт сумм по каждой смете
-    ============================================ */
-
-    const result = rows.map(estimate => {
-      const plain = estimate.toJSON();
-
-      let total_price_material = 0;
-      let total_price_service = 0;
-      let total_price = 0;
-
-      if (plain.items && plain.items.length > 0) {
-        for (const item of plain.items) {
-          const qty = Number(item.quantity_planned || 0);
-          const price = Number(item.price || 0);
-          const coefficient = Number(item.coefficient || 1);
-
-          total_price += qty * price * coefficient;
-
-          if (item.item_type === 1) { // material
-            total_price_material += qty * price * coefficient;
-          }
-
-          if (item.item_type === 2) { // service
-            total_price_service += qty * price * coefficient;
-          }
-        }
-      }
-
-      return {
-        ...plain,
-        total_price_material,
-        total_price_service,
-        total_price
-      };
-    });
-
-    /* ============================================ */
-
     res.json({
       success: true,
-      data: result,
+      data: rows,
       pagination: {
         page: Number(page),
         size: Number(size),
@@ -131,6 +87,7 @@ const searchMaterialEstimates = async (req, res) => {
 
   } catch (error) {
     console.error('Ошибка поиска смет:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при поиске смет',

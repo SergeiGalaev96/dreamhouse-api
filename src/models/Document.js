@@ -13,7 +13,11 @@ const Document = sequelize.define('Document', {
   },
   stage_id: {
     type: DataTypes.INTEGER,
-    defaultValue: 1
+    allowNull: true
+  },
+  work_performed_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
   name: {
     type: DataTypes.STRING(200),

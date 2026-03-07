@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { MaterialRequestItem, MaterialRequest, PurchaseOrderItem } = require('../models');
+const { MaterialRequest, MaterialRequestItem, PurchaseOrderItem } = require('../models');
 const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllMaterialRequestItems = async (req, res) => {
@@ -254,8 +254,6 @@ const updateMaterialRequestItem = async (req, res) => {
     });
   }
 };
-
-
 
 const deleteMaterialRequestItem = async (req, res) => {
   try {

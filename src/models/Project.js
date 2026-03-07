@@ -49,9 +49,18 @@ const Project = sequelize.define('Project', {
     allowNull: true
   },
   manager_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true
+    type: DataTypes.INTEGER
   },
+  foreman_id: {
+    type: DataTypes.INTEGER
+  },
+  master_id: {
+    type: DataTypes.INTEGER
+  },
+  warehouse_manager_id: {
+    type: DataTypes.INTEGER
+  },
+  
   description: {
     type: DataTypes.TEXT,
     allowNull: true

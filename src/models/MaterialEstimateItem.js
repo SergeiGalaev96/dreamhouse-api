@@ -13,6 +13,10 @@ MaterialEstimateItem.init({
 		type: DataTypes.INTEGER,
 		allowNull: false
 	},
+	stage_id: {
+		type: DataTypes.INTEGER,
+		allowNull: false
+	},
 	subsection_id: {
 		type: DataTypes.INTEGER,
 		allowNull: false
@@ -51,6 +55,10 @@ MaterialEstimateItem.init({
 	currency: {
 		type: DataTypes.INTEGER,
 		allowNull: true
+	},
+	currency_rate: {
+		type: DataTypes.DECIMAL,
+		allowNull: false
 	},
 	price: {
 		type: DataTypes.DECIMAL(3, 2)

@@ -170,6 +170,7 @@ router.get('/getById/:id', authenticateToken, getPurchaseOrderItemById);
  *           schema:
  *             type: object
  *             required:
+ *               - supplier_id
  *               - purchase_order_id
  *               - material_request_item_id
  *               - material_id
@@ -178,6 +179,8 @@ router.get('/getById/:id', authenticateToken, getPurchaseOrderItemById);
  *               - price
  *               - summ
  *             properties:
+ *               supplier_id:
+ *                 type: integer
  *               purchase_order_id:
  *                 type: integer
  *               material_request_item_id:

@@ -43,7 +43,6 @@ const searchPurchaseOrders = async (req, res) => {
   try {
     const {
       project_id,
-      supplier_id,
       created_user_id,
       status,
       page = 1,
@@ -55,7 +54,6 @@ const searchPurchaseOrders = async (req, res) => {
     const whereClause = { deleted: false };
 
     if (project_id) whereClause.project_id = project_id;
-    if (supplier_id) whereClause.supplier_id = supplier_id;
     if (created_user_id) whereClause.created_user_id = created_user_id;
     if (status) whereClause.status = status;
 

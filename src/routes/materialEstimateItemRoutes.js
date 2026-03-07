@@ -3,6 +3,7 @@ const { authenticateToken, authorizeRole } = require('../middleware/auth');
 
 const {
   getAllMaterialEstimateItems,
+  searchMaterialEstimateItems,
   getMaterialEstimateItemById,
   createMaterialEstimateItem,
   updateMaterialEstimateItem,
@@ -35,6 +36,43 @@ const router = express.Router();
  *         description: Ошибка сервера
  */
 router.get('/gets', authenticateToken, getAllMaterialEstimateItems);
+
+/**
+ * @swagger
+ * /api/materialEstimateItems/search:
+ *   post:
+ *     summary: Получение списка материалов из смет с подсчетом заказанного количества
+ *     tags: [MaterialEstimateItems]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               project_id:
+ *                 type: integer
+ *                 example: 1
+ *               block_id:
+ *                 type: integer
+ *                 example: 2
+ *               page:
+ *                 type: integer
+ *                 example: 1
+ *               size:
+ *                 type: integer
+ *                 example: 20
+ *     responses:
+ *       200:
+ *         description: Список материалов сметы
+ *       401:
+ *         description: Неавторизованный доступ
+ *       500:
+ *         description: Ошибка сервера
+ */
+router.post('/search', authenticateToken, searchMaterialEstimateItems);
 
 /**
  * @swagger

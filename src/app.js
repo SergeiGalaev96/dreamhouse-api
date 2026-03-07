@@ -36,7 +36,10 @@ const materialEstimateRoutes = require('./routes/materialEstimateRoutes');
 const materialEstimateItemRoutes = require('./routes/materialEstimateItemRoutes');
 const materialEstimateItemTypeRoutes = require('./routes/materialEstimateItemTypeRoutes');
 
-
+// Акты выполненных работ
+const workPerformedRoutes = require('./routes/workPerformedRoutes');
+const workPerformedItemRoutes = require('./routes/workPerformedItemRoutes');
+const workPerformedItemTypeRoutes = require('./routes/workPerformedItemTypeRoutes');
 
 // Заявки на материалы
 const materialRequestRoutes = require('./routes/materialRequestRoutes');
@@ -56,6 +59,7 @@ const purchaseOrderItemRoutes = require('./routes/purchaseOrderItemRoutes');
 const purchaseOrderItemStatusRoutes = require('./routes/purchaseOrderItemStatusRoutes');
 // Поставщики
 const supplierRoutes = require('./routes/supplierRoutes');
+const supplierRatingRoutes = require('./routes/supplierRatingRoutes');
 // Валюты
 const currencyRoutes = require('./routes/currencyRoutes');
 const currencyRatesRoutes = require('./routes/currencyRatesRoutes');
@@ -174,6 +178,12 @@ app.use('/api/materialEstimates', materialEstimateRoutes);
 app.use('/api/materialEstimateItems', materialEstimateItemRoutes);
 app.use('/api/materialEstimateItemTypes', materialEstimateItemTypeRoutes);
 
+// Акты выполненных работ
+app.use('/api/workPerformed', workPerformedRoutes);
+app.use('/api/workPerformedItems', workPerformedItemRoutes);
+app.use('/api/workPerformedItemTypes', workPerformedItemTypeRoutes);
+
+
 
 // Материалы
 app.use('/api/materials', materialRoutes);
@@ -198,6 +208,7 @@ app.use('/api/purchaseOrderItems', purchaseOrderItemRoutes);
 app.use('/api/purchaseOrderItemStatuses', purchaseOrderItemStatusRoutes);
 // Поставщики
 app.use('/api/suppliers', supplierRoutes);
+app.use('/api/supplierRating', supplierRatingRoutes);
 
 // Валюты
 app.use('/api/currencies', currencyRoutes);

@@ -1,5 +1,5 @@
-const { Op } = require("sequelize");
-const Project = require('../models/Project');
+const { Op, Sequelize } = require("sequelize");
+const { Project } = require("../models");
 const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllProjects = async (req, res) => {
@@ -29,11 +29,9 @@ const getAllProjects = async (req, res) => {
 
 const searchProjects = async (req, res) => {
   try {
+
     const {
       search,
-      // name,
-      // code,
-      // address,
       type,
       status,
       page = 1,
@@ -41,9 +39,8 @@ const searchProjects = async (req, res) => {
     } = req.body;
 
     const offset = (page - 1) * size;
+
     const whereClause = { deleted: false };
-
-
 
     if (search && search.trim() !== "") {
       const s = `%${search.trim()}%`;
@@ -53,14 +50,6 @@ const searchProjects = async (req, res) => {
         { address: { [Op.iLike]: s } }
       ];
     }
-    // if (name)
-    //   whereClause.name = { [Op.iLike]: `%${name}%` };
-
-    // if (code)
-    //   whereClause.code = { [Op.iLike]: `%${code}%` };
-
-    // if (address)
-    //   whereClause.address = { [Op.iLike]: `%${address}%` };
 
     if (status)
       whereClause.status = status;
@@ -68,18 +57,51 @@ const searchProjects = async (req, res) => {
     if (type)
       whereClause.type = type;
 
-
-    // if (start_date_from || start_date_to) {
-    //   whereClause.start_date = {};
-    //   if (start_date_from) whereClause.start_date[Op.gte] = start_date_from;
-    //   if (start_date_to) whereClause.start_date[Op.lte] = start_date_to;
-    // }
-
     const { count, rows } = await Project.findAndCountAll({
+
       where: whereClause,
+
       limit: Number(size),
       offset: Number(offset),
-      order: [['created_at', 'DESC']]
+
+      order: [["created_at", "DESC"]],
+
+      attributes: {
+
+        include: [
+
+          [
+            Sequelize.literal(`
+              COALESCE((
+                SELECT
+                  ROUND(
+                    (
+                      SUM(wpi.quantity)::float /
+                      NULLIF(SUM(mei.quantity_planned),0)
+                    )::numeric * 100
+                  ,2)::double precision
+                FROM construction.project_blocks pb
+                LEFT JOIN construction.material_estimates me
+                  ON me.block_id = pb.id
+                  AND me.deleted = false
+                LEFT JOIN construction.material_estimate_items mei
+                  ON mei.material_estimate_id = me.id
+                  AND mei.item_type = 2
+                  AND mei.deleted = false
+                LEFT JOIN construction.work_performed_items wpi
+                  ON wpi.material_estimate_item_id = mei.id
+                  AND wpi.deleted = false
+                WHERE pb.project_id = "Project".id
+                AND pb.deleted = false
+              ),0)
+            `),
+            "progress_percent"
+          ]
+
+        ]
+
+      }
+
     });
 
     res.json({
@@ -96,12 +118,15 @@ const searchProjects = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error("Ошибка при поиске проектов:", error);
+
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при поиске проектов",
       error: error.message,
     });
+
   }
 };
 

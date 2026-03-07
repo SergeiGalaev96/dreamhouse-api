@@ -4,6 +4,14 @@ const sequelize = require('../config/database');
 class MaterialRequestItem extends Model {}
 
 MaterialRequestItem.init({
+  material_request_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  material_estimate_item_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   material_type: {
     type: DataTypes.INTEGER,
     allowNull: false
@@ -24,25 +32,23 @@ MaterialRequestItem.init({
     type: DataTypes.DECIMAL,
     allowNull: true
   },
+  currency: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  currency_rate: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   summ: {
     type: DataTypes.DECIMAL,
     allowNull: true
   },
   comment: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  material_request_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+    type: DataTypes.TEXT
   },
   status: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
-  currency: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+    type: DataTypes.INTEGER
   },
 
   created_at: DataTypes.DATE,

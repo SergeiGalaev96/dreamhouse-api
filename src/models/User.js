@@ -14,7 +14,7 @@ const User = sequelize.define('User', {
   },
   email: {
     type: DataTypes.STRING(100),
-    allowNull: true,
+    allowNull: false,
     unique: true
   },
   password_hash: {
@@ -22,28 +22,29 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   first_name: {
-    type: DataTypes.STRING(50),
-    allowNull: true
+    type: DataTypes.STRING(50)
   },
   last_name: {
-    type: DataTypes.STRING(50),
-    allowNull: true
+    type: DataTypes.STRING(50)
   },
   middle_name: {
-    type: DataTypes.STRING(50),
-    allowNull: true
+    type: DataTypes.STRING(50)
   },
   phone: {
-    type: DataTypes.STRING(20),
-    allowNull: true
+    type: DataTypes.STRING(20)
   },
   role_id: {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+   supplier_id: {
+    type: DataTypes.INTEGER
+  },
+   contractor_id: {
+    type: DataTypes.INTEGER
+  },
   required_action: {
-    type: DataTypes.STRING(70),
-    allowNull: true
+    type: DataTypes.STRING(70)
   },
   created_at: {
     type: DataTypes.DATE

@@ -113,6 +113,16 @@ router.get('/getById/:id', authenticateToken, getBlockStageById);
  *                 type: string
  *                 example: Каркас
  *                 description: Название этапа
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *                 description: Дата начала
+ *                 example: 2026-02-29
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *                 description: Дата окончания
+ *                 example: 2026-02-29
  *               block_id:
  *                 type: integer
  *                 example: 3
@@ -121,11 +131,7 @@ router.get('/getById/:id', authenticateToken, getBlockStageById);
  *       201:
  *         description: Этап успешно создан
  */
-router.post(
-  '/create',
-  authenticateToken,
-  createBlockStage
-);
+router.post('/create', authenticateToken, createBlockStage);
 
 
 /**

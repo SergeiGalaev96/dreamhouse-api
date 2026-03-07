@@ -20,7 +20,12 @@ function parseNbkrDate(nbkrDate) {
 }
 
 async function fetchNbkrRates() {
-  const response = await axios.get(NBKR_URL, { timeout: 10000 });
+
+  const response = await retry(
+    () => axios.get(NBKR_URL, { timeout: 30000 }),
+    5,      // попыток
+    4000    // пауза
+  );
 
   const parser = new xml2js.Parser({
     explicitArray: false,
