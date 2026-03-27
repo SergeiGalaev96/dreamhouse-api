@@ -1,4 +1,5 @@
 const { Sequelize } = require("sequelize");
+const { Op } = require("sequelize");
 const {
   sequelize,
   MaterialEstimateItem,
@@ -39,6 +40,8 @@ const searchMaterialEstimateItems = async (req, res) => {
       project_id,
       block_id,
       item_type,
+      material_name,
+      service_name,
       page = 1,
       size = 20
     } = req.body;
@@ -47,50 +50,79 @@ const searchMaterialEstimateItems = async (req, res) => {
 
     const rows = await sequelize.query(
       `
-  SELECT
-    mei.*,
+      SELECT
+        mei.*,
 
-    COALESCE(SUM(mri.quantity),0) AS requested,
+        /* =========================
+           REQUESTED / DONE
+        ========================== */
 
-    (mei.quantity_planned -
-     COALESCE(SUM(mri.quantity),0)) AS remaining,
+        CASE
+          WHEN mei.item_type = 1
+            THEN COALESCE(SUM(mri.quantity),0)
+          WHEN mei.item_type = 2
+            THEN COALESCE(SUM(wpi.quantity),0)
+          ELSE 0
+        END AS requested,
 
-    COUNT(*) OVER() AS total_count
+        /* =========================
+           REMAINING
+        ========================== */
 
-  FROM construction.material_estimate_items mei
+        CASE
+          WHEN mei.item_type = 1
+            THEN mei.quantity_planned - COALESCE(SUM(mri.quantity),0)
+          WHEN mei.item_type = 2
+            THEN mei.quantity_planned - COALESCE(SUM(wpi.quantity),0)
+          ELSE mei.quantity_planned
+        END AS remaining,
 
-  JOIN construction.material_estimates me
-    ON me.id = mei.material_estimate_id
-    AND me.deleted = false
+        COUNT(*) OVER() AS total_count
 
-  JOIN construction.project_blocks pb
-    ON pb.id = me.block_id
-    AND pb.deleted = false
+      FROM construction.material_estimate_items mei
 
-  LEFT JOIN construction.material_request_items mri
-    ON mri.material_estimate_item_id = mei.id
-    AND mri.deleted = false
+      JOIN construction.material_estimates me
+        ON me.id = mei.material_estimate_id
+        AND me.deleted = false
 
-  WHERE mei.deleted = false
-  ${item_type ? "AND mei.item_type = :item_type" : ""}
-  ${project_id ? "AND pb.project_id = :project_id" : ""}
-  ${block_id ? "AND pb.id = :block_id" : ""}
+      JOIN construction.project_blocks pb
+        ON pb.id = me.block_id
+        AND pb.deleted = false
 
-  GROUP BY mei.id
+      /* материалы */
+      LEFT JOIN construction.material_request_items mri
+        ON mri.material_estimate_item_id = mei.id
+        AND mri.deleted = false
 
-  HAVING
-  (mei.quantity_planned -
-   COALESCE(SUM(mri.quantity),0)) > 0
+      /* выполненные работы */
+      LEFT JOIN construction.work_performed_items wpi
+        ON wpi.material_estimate_item_id = mei.id
+        AND wpi.deleted = false
 
-  ORDER BY mei.id
+      /* справочник материалов */
+      LEFT JOIN construction.materials m
+        ON m.id = mei.material_id
 
-  LIMIT :size OFFSET :offset
-  `,
+      WHERE mei.deleted = false
+      ${item_type != null ? "AND mei.item_type = :item_type" : ""}
+      ${project_id ? "AND pb.project_id = :project_id" : ""}
+      ${block_id ? "AND pb.id = :block_id" : ""}
+      ${material_name ? "AND m.name ILIKE :material_name" : ""}
+      ${service_name ? "AND mei.name ILIKE :service_name" : ""}
+
+      GROUP BY mei.id
+
+      ORDER BY mei.id
+
+      LIMIT :size OFFSET :offset
+      `,
       {
         replacements: {
           project_id,
           block_id,
           item_type,
+          material_name: material_name ? `%${material_name}%` : undefined,
+          service_name: service_name ? `%${service_name}%` : undefined,
           size: Number(size),
           offset
         },
@@ -163,139 +195,164 @@ const getMaterialEstimateItemById = async (req, res) => {
   }
 };
 
-const createMaterialEstimateItem = async (req, res) => {
+const createMaterialEstimateItems = async (req, res) => {
+
   const transaction = await sequelize.transaction();
 
   try {
 
-    const {
-      item_type,
-      material_id,
-      service_id,
-      quantity_planned
-    } = req.body;
+    const items = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Body должен быть массивом'
+      });
+    }
+
+    const materialEstimateId = items[0].material_estimate_id;
+    const subsectionId = items[0].subsection_id;
 
     /* ================================
-       1️⃣ ВАЛИДАЦИЯ
+       1️⃣ СОБИРАЕМ ID
     ================================= */
 
-    if (![1, 2].includes(Number(item_type))) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Неверный item_type (1=material, 2=service)'
-      });
-    }
+    const materialIds = items
+      .filter(i => i.item_type == 1)
+      .map(i => i.material_id);
 
-    if (item_type == 1 && (!material_id || service_id)) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Для материала нужен material_id'
-      });
-    }
-
-    if (item_type == 2 && (!service_id || material_id)) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Для услуги нужен service_id'
-      });
-    }
+    const serviceIds = items
+      .filter(i => i.item_type == 2)
+      .map(i => i.service_id);
 
     /* ================================
-       2️⃣ ПОИСК ДУБЛЯ
+       2️⃣ ОДИН SELECT
     ================================= */
 
-    const whereClause = {
-      material_estimate_id: req.body.material_estimate_id,
-      subsection_id: req.body.subsection_id,
-      item_type,
-      deleted: false,
-      ...(item_type == 1
-        ? { material_id }
-        : { service_id })
-    };
-
-    const existingItem = await MaterialEstimateItem.findOne({
-      where: whereClause,
+    const existingItems = await MaterialEstimateItem.findAll({
+      where: {
+        material_estimate_id: materialEstimateId,
+        subsection_id: subsectionId,
+        deleted: false,
+        [Op.or]: [
+          { material_id: materialIds },
+          { service_id: serviceIds }
+        ]
+      },
       transaction
     });
 
     /* ================================
-       3️⃣ СЛИЯНИЕ КОЛИЧЕСТВА
+       3️⃣ MAP ДЛЯ БЫСТРОГО ДОСТУПА
     ================================= */
 
-    if (existingItem) {
+    const existingMap = new Map();
 
-      const oldQuantity = Number(existingItem.quantity_planned || 0);
-      const addQuantity = Number(quantity_planned || 0);
-      const newQuantity = oldQuantity + addQuantity;
+    for (const item of existingItems) {
 
-      const result = await updateWithAudit({
-        model: MaterialEstimateItem,
-        id: existingItem.id,
-        data: {
+      const key = item.item_type == 1
+        ? `m_${item.material_id}`
+        : `s_${item.service_id}`;
+
+      existingMap.set(key, item);
+
+    }
+
+    const newItems = [];
+    const updatedItems = [];
+
+    /* ================================
+       4️⃣ ОБРАБОТКА
+    ================================= */
+
+    for (const item of items) {
+
+      const key = item.item_type == 1
+        ? `m_${item.material_id}`
+        : `s_${item.service_id}`;
+
+      const existing = existingMap.get(key);
+
+      if (existing) {
+
+        const newQuantity =
+          Number(existing.quantity_planned || 0) +
+          Number(item.quantity_planned || 0);
+
+        await updateWithAudit({
+          model: MaterialEstimateItem,
+          id: existing.id,
+          data: { quantity_planned: newQuantity },
+          entityType: 'material_estimate_item',
+          action: 'quantity_merged',
+          userId: req.user.id,
+          comment: `Добавлено ${item.quantity_planned}`,
+          transaction
+        });
+
+        updatedItems.push({
+          ...existing.toJSON(),
           quantity_planned: newQuantity
-        },
-        entityType: 'material_estimate_item',
-        action: 'quantity_merged',
-        userId: req.user.id,
-        comment: `Добавлено ${addQuantity}, было ${oldQuantity}`,
-        transaction
-      });
+        });
 
-      await transaction.commit();
+      } else {
 
-      return res.json({
-        success: true,
-        message: 'Количество увеличено в существующей позиции',
-        data: result.instance
-      });
+        newItems.push({
+          ...item,
+          material_id: item.item_type == 1 ? item.material_id : null,
+          service_id: item.item_type == 2 ? item.service_id : null,
+          coefficient: item.coefficient ?? null,
+          created_user_id: req.user.id
+        });
+
+      }
 
     }
 
     /* ================================
-       4️⃣ НОРМАЛИЗАЦИЯ ДАННЫХ
+       5️⃣ BULK INSERT
     ================================= */
 
-    const payload = {
-      ...req.body,
+    let created = [];
 
-      material_id: item_type == 1 ? material_id : null,
-      service_id: item_type == 2 ? service_id : null,
-
-      coefficient: req.body.coefficient ?? null,
-      created_user_id: req.user.id
-    };
-
-    /* ================================
-       5️⃣ СОЗДАНИЕ
-    ================================= */
-
-    const item = await MaterialEstimateItem.create(payload, { transaction });
+    if (newItems.length) {
+      created = await MaterialEstimateItem.bulkCreate(newItems, {
+        transaction
+      });
+    }
 
     await transaction.commit();
 
-    return res.status(201).json({
+    /* ================================
+       🔥 ОБЪЕДИНЯЕМ
+    ================================= */
+
+    const data = [
+      ...created.map(i => i.toJSON()),
+      ...updatedItems
+    ];
+
+    res.status(201).json({
       success: true,
-      message: 'Позиция сметы создана',
-      data: item
+      message: 'Позиции сметы обработаны',
+      data
     });
 
   } catch (error) {
 
     await transaction.rollback();
 
-    console.error('createMaterialEstimateItem error:', error);
+    console.error('createMaterialEstimateItemsBulk error:', error);
 
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при создании позиции',
+      message: 'Ошибка сервера',
       error: error.message
     });
 
   }
+
 };
 
 const updateMaterialEstimateItem = async (req, res) => {
@@ -378,7 +435,7 @@ module.exports = {
   getAllMaterialEstimateItems,
   searchMaterialEstimateItems,
   getMaterialEstimateItemById,
-  createMaterialEstimateItem,
+  createMaterialEstimateItems,
   updateMaterialEstimateItem,
   deleteMaterialEstimateItem
 };

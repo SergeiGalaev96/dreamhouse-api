@@ -54,9 +54,15 @@ router.get('/gets', authenticateToken, getAllWorkPerformed);
  *           schema:
  *             type: object
  *             properties:
+ *               block_id:
+ *                 type: integer
+ *                 example: 1
  *               code:
  *                 type: string
  *                 example: ACT-001
+ *               status:
+ *                 type: integer
+ *                 example: 1
  *               page:
  *                 type: integer
  *                 example: 1
@@ -105,6 +111,7 @@ router.get('/getById/:id', authenticateToken, getWorkPerformedById);
  * /api/workPerformed/create:
  *   post:
  *     summary: Создание акта выполненных работ
+ *     description: Создаёт акт выполненных работ вместе с позициями (items)
  *     tags: [WorkPerformed]
  *     security:
  *       - bearerAuth: []
@@ -115,6 +122,9 @@ router.get('/getById/:id', authenticateToken, getWorkPerformedById);
  *           schema:
  *             type: object
  *             properties:
+ *               project_id:
+ *                 type: integer
+ *                 example: 20
  *               block_id:
  *                 type: integer
  *                 example: 1
@@ -142,11 +152,56 @@ router.get('/getById/:id', authenticateToken, getWorkPerformedById);
  *               performed_person_name:
  *                 type: string
  *                 example: Бригада №2
+ *               items:
+ *                 type: array
+ *                 description: Список выполненных работ
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     material_estimate_item_id:
+ *                       type: integer
+ *                       example: 85
+ *                     service_type:
+ *                       type: integer
+ *                       example: 1
+ *                     service_id:
+ *                       type: integer
+ *                       example: 1
+ *                     unit_of_measure:
+ *                       type: integer
+ *                       example: 12
+ *                     stage_id:
+ *                       type: integer
+ *                       example: 12
+ *                     subsection_id:
+ *                       type: integer
+ *                       example: 14
+ *                     quantity:
+ *                       type: number
+ *                       example: 20
+ *                     price:
+ *                       type: number
+ *                       example: 5000
+ *                     currency:
+ *                       type: integer
+ *                       example: 1
+ *                     currency_rate:
+ *                       type: number
+ *                       nullable: true
+ *                       example: null
+ *                     item_type:
+ *                       type: integer
+ *                       example: 1
+ *                     comment:
+ *                       type: string
+ *                       example: ""
  *     responses:
  *       201:
  *         description: Акт успешно создан
  *       400:
  *         description: Ошибка валидации
+ *       401:
+ *         description: Неавторизован
  *       500:
  *         description: Ошибка сервера
  */

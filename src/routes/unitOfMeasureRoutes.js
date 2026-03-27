@@ -8,7 +8,7 @@ const {
   createUnitOfMeasure, 
   updateUnitOfMeasure, 
   deleteUnitOfMeasure 
-} = require('../controllers/UnitOfMeasureController');
+} = require('../controllers/unitOfMeasureController');
 
 const router = express.Router();
 

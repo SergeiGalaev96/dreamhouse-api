@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { 
+const {
   getAllWarehouseStocks,
   searchWarehouseStocks,
   getWarehouseStockById,
@@ -62,6 +62,9 @@ router.get('/gets', authenticateToken, getAllWarehouseStocks);
  *               material_id:
  *                 type: integer
  *                 example: 1
+ *               search:
+ *                 type: string
+ *                 example: "гвозди"
  *               page:
  *                 type: integer
  *                 example: 1

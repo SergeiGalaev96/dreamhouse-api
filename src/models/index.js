@@ -194,6 +194,25 @@ PurchaseOrderItem.belongsTo(PurchaseOrder, {
   as: 'purchase_order'
 });
 
+PurchaseOrderItem.belongsTo(Material, {
+  foreignKey: "material_id",
+  as: "material"
+});
+Material.hasMany(PurchaseOrderItem, {
+  foreignKey: "material_id",
+  as: "purchase_items"
+});
+
+PurchaseOrder.belongsTo(Project, {
+  foreignKey: "project_id",
+  as: "project"
+});
+
+PurchaseOrder.belongsTo(ProjectBlock, {
+  foreignKey: "block_id",
+  as: "block"
+});
+
 /**
  * ================================
  * SUPPLIER RATING
@@ -241,6 +260,11 @@ Warehouse.hasMany(WarehouseStock, {
 WarehouseStock.belongsTo(Warehouse, {
   foreignKey: 'warehouse_id',
   as: 'warehouse'
+});
+
+WarehouseStock.belongsTo(Material, {
+  foreignKey: "material_id",
+  as: "material"
 });
 
 

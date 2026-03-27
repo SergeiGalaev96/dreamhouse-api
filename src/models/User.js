@@ -37,10 +37,10 @@ const User = sequelize.define('User', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
-   supplier_id: {
+  supplier_id: {
     type: DataTypes.INTEGER
   },
-   contractor_id: {
+  contractor_id: {
     type: DataTypes.INTEGER
   },
   required_action: {

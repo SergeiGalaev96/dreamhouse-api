@@ -7,18 +7,6 @@ const Document = sequelize.define('Document', {
     primaryKey: true,
     autoIncrement: true
   },
-  project_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
-  stage_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
-  work_performed_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
   name: {
     type: DataTypes.STRING(200),
     allowNull: false
@@ -42,6 +30,14 @@ const Document = sequelize.define('Document', {
   responsible_users: {
     type: DataTypes.ARRAY(DataTypes.INTEGER),
     allowNull: true
+  },
+  entity_type: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  entity_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
   },
   created_at: {
     type: DataTypes.DATE

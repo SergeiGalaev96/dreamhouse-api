@@ -25,6 +25,10 @@ MaterialEstimateItem.init({
 		type: DataTypes.INTEGER,
 		allowNull: false
 	},
+	entry_type: {
+		type: DataTypes.INTEGER,
+		allowNull: false
+	},
 	service_type: {
 		type: DataTypes.INTEGER,
 		allowNull: true

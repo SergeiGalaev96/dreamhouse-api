@@ -129,8 +129,13 @@ const createPurchaseOrderItem = async (req, res) => {
 
 const updatePurchaseOrderItem = async (req, res) => {
   try {
+
     const { id } = req.params;
     const { comment, ...data } = req.body;
+
+    /* ============================================================
+       ОБНОВЛЯЕМ ITEM
+    ============================================================ */
 
     const result = await updateWithAudit({
       model: PurchaseOrderItem,
@@ -149,6 +154,41 @@ const updatePurchaseOrderItem = async (req, res) => {
       });
     }
 
+    const updatedItem = result.instance;
+
+    /* ============================================================
+       ПРОВЕРЯЕМ ВСЕ ITEMS В ЗАЯВКЕ
+    ============================================================ */
+
+    const purchaseOrderId = updatedItem.purchase_order_id;
+
+    const items = await PurchaseOrderItem.findAll({
+      where: {
+        purchase_order_id: purchaseOrderId,
+        deleted: false
+      },
+      attributes: ['status']
+    });
+
+    const allDone = items.length > 0 && items.every(i => i.status === 2);
+
+    /* ============================================================
+       ЕСЛИ ВСЕ = 2 → ОБНОВЛЯЕМ ЗАЯВКУ
+    ============================================================ */
+
+    if (allDone) {
+      await PurchaseOrder.update(
+        { status: 2 },
+        {
+          where: { id: purchaseOrderId }
+        }
+      );
+    }
+
+    /* ============================================================
+       RESPONSE
+    ============================================================ */
+
     return res.json({
       success: true,
       message: result.changed
@@ -158,6 +198,7 @@ const updatePurchaseOrderItem = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error('updatePurchaseOrderItem error:', error);
 
     res.status(500).json({
@@ -165,6 +206,7 @@ const updatePurchaseOrderItem = async (req, res) => {
       message: 'Ошибка сервера при обновлении материала в заявке на закуп',
       error: error.message
     });
+
   }
 };
 
@@ -206,6 +248,7 @@ const receivePurchaseOrderItems = async (req, res) => {
 
   try {
     const { warehouse_id, items } = req.body;
+
     if (!warehouse_id) {
       await transaction.rollback();
       return res.status(400).json({
@@ -222,14 +265,15 @@ const receivePurchaseOrderItems = async (req, res) => {
       });
     }
 
-    // Все затронутые заявки на материалы
     const affectedMaterialRequestIds = new Set();
     const affectedPurchaseOrderIds = new Set();
 
     /* ============================================================
-       1. Обрабатываем каждую позицию закупки
+       1. Обрабатываем позиции
     ============================================================ */
+
     for (const entry of items) {
+
       const { purchase_order_item_id, received_quantity } = entry;
 
       if (!purchase_order_item_id || received_quantity === undefined || received_quantity < 0) {
@@ -259,7 +303,9 @@ const receivePurchaseOrderItems = async (req, res) => {
       /* =======================
          1.1 Статус позиции
       ======================= */
+
       let poItemStatus;
+
       if (received_quantity === 0) {
         poItemStatus = 6; // Не доставлен
       } else if (newDeliveredTotal >= orderedQty) {
@@ -277,28 +323,31 @@ const receivePurchaseOrderItems = async (req, res) => {
       );
 
       /* =======================
-         1.2 Обновляем склад
+         1.2 Обновляем склад (FIX)
       ======================= */
+
       if (received_quantity > 0) {
+
         const stock = await WarehouseStock.findOne({
           where: {
             warehouse_id,
             material_id: poItem.material_id,
-            material_type: poItem.material_type,
-            unit_of_measure: poItem.unit_of_measure,
             deleted: false
           },
           transaction
         });
 
         if (stock) {
+
           await stock.update(
             {
               quantity: Number(stock.quantity) + Number(received_quantity)
             },
             { transaction }
           );
+
         } else {
+
           await WarehouseStock.create(
             {
               warehouse_id,
@@ -309,16 +358,15 @@ const receivePurchaseOrderItems = async (req, res) => {
             },
             { transaction }
           );
+
         }
+
         /* =======================
-          1.3 Создаем транзакции
+           1.3 Движение материалов
         ======================= */
-        const warehouse = await Warehouse.findOne({
-          where: {
-            id: warehouse_id
-          },
-          transaction
-        });
+
+        const warehouse = await Warehouse.findByPk(warehouse_id, { transaction });
+
         await MaterialMovement.create(
           {
             project_id: warehouse.project_id,
@@ -333,17 +381,24 @@ const receivePurchaseOrderItems = async (req, res) => {
           },
           { transaction }
         );
+
       }
 
       if (poItem.material_request_item) {
-        affectedMaterialRequestIds.add(poItem.material_request_item.material_request_id);
+        affectedMaterialRequestIds.add(
+          poItem.material_request_item.material_request_id
+        );
         affectedPurchaseOrderIds.add(poItem.purchase_order_id);
       }
+
     }
+
     /* ============================================================
-      2. Проверяем, можно ли закрыть PurchaseOrder
+       2. Обновляем статус PurchaseOrder
     ============================================================ */
+
     for (const poId of affectedPurchaseOrderIds) {
+
       const poItems = await PurchaseOrderItem.findAll({
         where: {
           purchase_order_id: poId,
@@ -353,48 +408,19 @@ const receivePurchaseOrderItems = async (req, res) => {
         transaction
       });
 
-      const allDelivered = poItems.length > 0 && poItems.every(item => item.status === 4);
+      const allDelivered =
+        poItems.length > 0 &&
+        poItems.every(item => item.status === 4);
 
       await PurchaseOrder.update(
-        { status: allDelivered ? 5 : 4 }, // 5 Полностью доставлен /4 Частично доставлен
+        { status: allDelivered ? 5 : 4 }, // 5 = полностью, 4 = частично
         {
           where: { id: poId },
           transaction
         }
       );
-      // иначе остаётся "В доставке"
+
     }
-
-    /* ============================================================
-       3. Проверяем, можно ли закрыть MaterialRequest
-    ============================================================ */
-    // for (const mrId of affectedMaterialRequestIds) {
-    //   const poItems = await PurchaseOrderItem.findAll({
-    //     include: {
-    //       model: MaterialRequestItem,
-    //       as: 'material_request_item',
-    //       where: { material_request_id: mrId },
-    //       attributes: []
-    //     },
-    //     attributes: ['status'],
-    //     transaction
-    //   });
-
-    //   const allDelivered =
-    //     poItems.length > 0 &&
-    //     poItems.every(i => i.status === 4);
-
-    //   if (allDelivered) {
-    //     await MaterialRequest.update(
-    //       { status: 4 }, // Исполнена
-    //       {
-    //         where: { id: mrId },
-    //         transaction
-    //       }
-    //     );
-    //   }
-    //   // иначе статус остаётся "На исполнении"
-    // }
 
     await transaction.commit();
 
@@ -404,7 +430,9 @@ const receivePurchaseOrderItems = async (req, res) => {
     });
 
   } catch (error) {
+
     await transaction.rollback();
+
     console.error('receivePurchaseOrderItems error:', error);
 
     res.status(500).json({
@@ -412,6 +440,7 @@ const receivePurchaseOrderItems = async (req, res) => {
       message: 'Ошибка сервера при приёмке материалов',
       error: error.message
     });
+
   }
 };
 

@@ -1,4 +1,5 @@
-const Warehouse = require('../models/Warehouse');
+const { Op } = require("sequelize");
+const { Warehouse, WarehouseStock } = require('../models');
 const updateWithAudit = require('../utils/updateWithAudit');
 
 
@@ -7,7 +8,7 @@ const getAllWarehouses = async (req, res) => {
     // const { page = 1, size = 10} = req.query;
     // const offset = (page - 1) * size;
 
-    const whereClause = {deleted: false};
+    const whereClause = { deleted: false };
 
     const { count, rows } = await Warehouse.findAndCountAll({
       where: whereClause,
@@ -37,6 +38,7 @@ const getAllWarehouses = async (req, res) => {
 
 const searchWarehouses = async (req, res) => {
   try {
+
     const {
       project_id,
       manager_id,
@@ -46,22 +48,38 @@ const searchWarehouses = async (req, res) => {
     } = req.body;
 
     const offset = (page - 1) * size;
-    const whereClause = {deleted: false};
 
-    
+    const whereClause = { deleted: false };
+
     if (project_id)
-      whereClause.project_id = project_id
+      whereClause.project_id = project_id;
+
     if (manager_id)
-      whereClause.manager_id = manager_id
+      whereClause.manager_id = manager_id;
+
     if (name)
       whereClause.name = { [Op.iLike]: `%${name}%` };
 
-
     const { count, rows } = await Warehouse.findAndCountAll({
       where: whereClause,
+
+      distinct: true,
+
       limit: Number(size),
       offset: Number(offset),
-      order: [['created_at', 'DESC']]
+
+      order: [['created_at', 'DESC']],
+
+      include: [
+        {
+          model: WarehouseStock,
+          as: 'items',
+          required: false,
+          where: {
+            deleted: false
+          }
+        }
+      ]
     });
 
     res.json({
@@ -78,12 +96,15 @@ const searchWarehouses = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error("Ошибка при поиске запасов:", error);
+
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при поиске запасов",
       error: error.message,
     });
+
   }
 };
 
@@ -115,7 +136,7 @@ const getWarehouseById = async (req, res) => {
 const createWarehouse = async (req, res) => {
   try {
     const warehouse = await Warehouse.create(req.body);
-    
+
     res.status(201).json({
       success: true,
       message: 'Склад успешно создан',

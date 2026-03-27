@@ -132,8 +132,44 @@ const searchProjects = async (req, res) => {
 
 const getProjectById = async (req, res) => {
   try {
+
     const { id } = req.params;
-    const project = await Project.findByPk(id);
+
+    const project = await Project.findByPk(id, {
+
+      attributes: {
+        include: [
+          [
+            Sequelize.literal(`
+              COALESCE((
+                SELECT
+                  ROUND(
+                    (
+                      SUM(wpi.quantity)::float /
+                      NULLIF(SUM(mei.quantity_planned),0)
+                    )::numeric * 100
+                  ,2)::double precision
+                FROM construction.project_blocks pb
+                LEFT JOIN construction.material_estimates me
+                  ON me.block_id = pb.id
+                  AND me.deleted = false
+                LEFT JOIN construction.material_estimate_items mei
+                  ON mei.material_estimate_id = me.id
+                  AND mei.item_type = 2
+                  AND mei.deleted = false
+                LEFT JOIN construction.work_performed_items wpi
+                  ON wpi.material_estimate_item_id = mei.id
+                  AND wpi.deleted = false
+                WHERE pb.project_id = "Project".id
+                AND pb.deleted = false
+              ),0)
+            `),
+            "progress_percent"
+          ]
+        ]
+      }
+
+    });
 
     if (!project) {
       return res.status(404).json({
@@ -146,12 +182,17 @@ const getProjectById = async (req, res) => {
       success: true,
       data: project
     });
+
   } catch (error) {
+
+    console.error("Ошибка получения проекта:", error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при получении проекта',
       error: error.message
     });
+
   }
 };
 

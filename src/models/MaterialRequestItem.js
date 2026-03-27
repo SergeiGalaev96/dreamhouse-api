@@ -1,7 +1,7 @@
 const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-class MaterialRequestItem extends Model {}
+class MaterialRequestItem extends Model { }
 
 MaterialRequestItem.init({
   material_request_id: {
@@ -9,8 +9,7 @@ MaterialRequestItem.init({
     allowNull: false
   },
   material_estimate_item_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+    type: DataTypes.INTEGER
   },
   material_type: {
     type: DataTypes.INTEGER,
@@ -40,15 +39,27 @@ MaterialRequestItem.init({
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  coefficient: {
+    type: DataTypes.DECIMAL(3, 2)
+  },
   summ: {
     type: DataTypes.DECIMAL,
     allowNull: true
   },
-  comment: {
-    type: DataTypes.TEXT
-  },
   status: {
     type: DataTypes.INTEGER
+  },
+  stage_id: {
+    type: DataTypes.INTEGER
+  },
+  subsection_id: {
+    type: DataTypes.INTEGER
+  },
+  item_type: {
+    type: DataTypes.INTEGER
+  },
+  comment: {
+    type: DataTypes.TEXT
   },
 
   created_at: DataTypes.DATE,

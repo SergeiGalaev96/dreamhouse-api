@@ -1,10 +1,10 @@
 const { Op } = require("sequelize");
-const { Warehouse, WarehouseStock } = require('../models');
+const { Warehouse, WarehouseStock, Material } = require('../models');
 const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllWarehouseStocks = async (req, res) => {
   try {
-    const whereClause = {deleted: false};
+    const whereClause = { deleted: false };
     const { count, rows } = await WarehouseStock.findAndCountAll({
       where: whereClause,
       order: [['created_at', 'DESC']]
@@ -32,20 +32,25 @@ const searchWarehouseStocks = async (req, res) => {
       warehouse_id,
       material_id,
       project_id,
+      search,
       page = 1,
       size = 10
     } = req.body;
 
     const offset = (page - 1) * size;
-    const whereClause = {deleted: false};
 
-    
+    const whereClause = { deleted: false };
 
     if (warehouse_id)
-      whereClause.warehouse_id = warehouse_id
+      whereClause.warehouse_id = warehouse_id;
+
     if (material_id)
-      whereClause.material_id = material_id 
-    // Фильтр по project_id через связанный MaterialRequest
+      whereClause.material_id = material_id;
+
+    /* ============================================================
+       INCLUDE
+    ============================================================ */
+
     const include = [
       {
         model: Warehouse,
@@ -54,13 +59,42 @@ const searchWarehouseStocks = async (req, res) => {
           deleted: false,
           ...(project_id && { project_id })
         },
-        attributes: [] // только для фильтрации
+        attributes: []
       }
     ];
+
+    /* ============================================================
+       ПОИСК ПО MATERIAL.NAME
+    ============================================================ */
+
+    if (search && search.trim() !== "") {
+      include.push({
+        model: Material,
+        as: 'material',
+        required: true, // 👈 важно (INNER JOIN)
+        where: {
+          name: { [Op.iLike]: `%${search.trim()}%` }
+        },
+        attributes: ['id', 'name']
+      });
+    } else {
+      include.push({
+        model: Material,
+        as: 'material',
+        attributes: ['id', 'name']
+      });
+    }
+
+    /* ============================================================
+       QUERY
+    ============================================================ */
 
     const { count, rows } = await WarehouseStock.findAndCountAll({
       where: whereClause,
       include,
+
+      distinct: true, // 👈 на всякий
+
       limit: Number(size),
       offset: Number(offset),
       order: [['created_at', 'DESC']]
@@ -81,6 +115,7 @@ const searchWarehouseStocks = async (req, res) => {
 
   } catch (error) {
     console.error("Ошибка при поиске запасов:", error);
+
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при поиске запасов",
@@ -117,7 +152,7 @@ const getWarehouseStockById = async (req, res) => {
 const createWarehouseStock = async (req, res) => {
   try {
     const warehouse = await WarehouseStock.create(req.body);
-    
+
     res.status(201).json({
       success: true,
       message: 'Запас успешно создан',

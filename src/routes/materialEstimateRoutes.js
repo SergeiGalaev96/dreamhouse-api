@@ -113,26 +113,14 @@ router.get('/getById/:id', authenticateToken, getMaterialEstimateById);
  *             type: object
  *             required:
  *               - block_id
- *               - planned_budget
- *               - total_area
- *               - sale_area
  *               - status
  *             properties:
  *               block_id:
  *                 type: integer
  *                 example: 1
- *               planned_budget:
- *                 type: number
- *                 format: decimal
- *                 example: 35000000.0000
- *               total_area:
- *                 type: number
- *                 format: decimal
- *                 example: 4598.8400
- *               sale_area:
- *                 type: number
- *                 format: decimal
- *                 example: 4136.3600
+ *               name:
+ *                 type: string
+ *                 example: "Смета Блок А"
  *               status:
  *                 type: integer
  *                 description: 1=draft, 2=approved, 3=archived
@@ -221,18 +209,9 @@ router.post('/create', authenticateToken, createMaterialEstimate);
  *           schema:
  *             type: object
  *             properties:
- *               planned_budget:
- *                 type: number
- *                 format: decimal
- *                 example: 37000000.0000
- *               total_area:
- *                 type: number
- *                 format: decimal
- *                 example: 4600.0000
- *               sale_area:
- *                 type: number
- *                 format: decimal
- *                 example: 4150.0000
+ *               name:
+ *                 type: string
+ *                 example: "Смета Блок А"
  *               status:
  *                 type: integer
  *                 description: 1=draft, 2=approved, 3=archived
@@ -283,6 +262,6 @@ router.put('/update/:id', authenticateToken, updateMaterialEstimate);
  *       500:
  *         description: Ошибка сервера
  */
-router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteMaterialEstimate);
+router.delete('/delete/:id', authenticateToken, authorizeRole(1, 10, 11), deleteMaterialEstimate);
 
 module.exports = router;

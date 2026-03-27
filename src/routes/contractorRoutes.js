@@ -52,8 +52,10 @@ router.get('/gets', authenticateToken, getAllContractors);
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               search:
  *                 type: string
+ *                 description: Поиск по названию, ИНН, КПП, ОГРН, телефону, email или адресу
+ *                 example: "ОсОО"
  *               page:
  *                 type: integer
  *                 description: Номер страницы
@@ -124,10 +126,32 @@ router.get('/getById/:id', authenticateToken, getContractorById);
  *             properties:
  *               name:
  *                 type: string
- *                 description: № контрактора
+ *                 description: Название контрагента
+ *                 example: ОсОО "БишкекСтрой"
  *               inn:
  *                 type: string
- *                 description: Тип контрактора
+ *                 description: ИНН контрагента
+ *                 example: "0123456789"
+ *               kpp:
+ *                 type: string
+ *                 description: КПП
+ *                 example: "123456789"
+ *               ogrn:
+ *                 type: string
+ *                 description: ОГРН
+ *                 example: "1027700132195"
+ *               address:
+ *                 type: string
+ *                 description: Адрес контрагента
+ *                 example: г. Бишкек, ул. Чуй 120
+ *               phone:
+ *                 type: string
+ *                 description: Телефон
+ *                 example: "+996700123456"
+ *               email:
+ *                 type: string
+ *                 description: Email
+ *                 example: info@company.kg
  *     responses:
  *       201:
  *         description: Контрактор успешно создан

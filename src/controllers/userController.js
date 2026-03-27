@@ -34,14 +34,48 @@ const getAllUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { username, email, password, first_name, last_name, middle_name, phone, role_id } = req.body;
 
-    // Проверка существования пользователя
+    /* ============================================================
+       Берём только поля из модели (без опасных)
+    ============================================================ */
+
+    const excludedFields = [
+      "id",
+      "created_at",
+      "updated_at",
+      "deleted",
+      "password_hash"
+    ];
+
+    const userData = Object.fromEntries(
+      Object.entries(req.body).filter(([key]) =>
+        (key in User.rawAttributes && !excludedFields.includes(key)) ||
+        key === "password" // 👈 ДОБАВИЛИ
+      )
+    );
+
+    const { password, ...rest } = userData;
+
+    /* ============================================================
+       Валидация обязательных полей
+    ============================================================ */
+
+    if (!rest.username || !rest.email || !password || !rest.role_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Не заполнены обязательные поля"
+      });
+    }
+
+    /* ============================================================
+       Проверка существования пользователя
+    ============================================================ */
+
     const existingUser = await User.findOne({
       where: {
         [Op.or]: [
-          { username },
-          { email }
+          { username: rest.username },
+          { email: rest.email }
         ]
       }
     });
@@ -53,23 +87,26 @@ const createUser = async (req, res) => {
       });
     }
 
-    // Хеширование пароля
+    /* ============================================================
+       Хеширование пароля
+    ============================================================ */
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Создание пользователя
+    /* ============================================================
+       Создание пользователя
+    ============================================================ */
+
     const user = await User.create({
-      username,
-      email,
-      password_hash: hashedPassword,
-      first_name,
-      last_name,
-      middle_name,
-      phone,
-      role_id
+      ...rest,
+      password_hash: hashedPassword
     });
 
-    // Генерация JWT токена
+    /* ============================================================
+       Генерация JWT
+    ============================================================ */
+
     const token = jwt.sign(
       {
         id: user.id,
@@ -79,6 +116,10 @@ const createUser = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRE }
     );
+
+    /* ============================================================
+       RESPONSE
+    ============================================================ */
 
     res.status(201).json({
       success: true,
@@ -90,23 +131,29 @@ const createUser = async (req, res) => {
         first_name: user.first_name,
         last_name: user.last_name,
         middle_name: user.middle_name,
-        phone: user.phone
+        phone: user.phone,
+        role_id: user.role_id
       },
       token
     });
+
   } catch (error) {
+
+    console.error("createUser error:", error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при регистрации пользователя',
       error: error.message
     });
+
   }
 };
 
 const searchUsers = async (req, res) => {
   try {
     const {
-      search,       // ← единая строка поиска
+      search,
       role_id,
       page = 1,
       size = 10
@@ -116,7 +163,7 @@ const searchUsers = async (req, res) => {
 
     const whereClause = { deleted: false };
 
-    // Если есть общий search → ищем по всем полям
+    // ищем по всем полям
     if (search) {
       const s = `%${search}%`;
 
@@ -332,7 +379,7 @@ const changeOwnPassword = async (req, res) => {
     const newHash = await bcrypt.hash(newPassword, 10);
 
     await User.update(
-      { password_hash: newHash, required_action: null},
+      { password_hash: newHash, required_action: null },
       { where: { id: userId } }
     );
 

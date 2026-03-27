@@ -101,5 +101,93 @@ const sendMaterialRequestEmail = async ({
   });
 };
 
+const formatDate = (date) => {
+  if (!date) return '—';
 
-module.exports = { sendTempPasswordEmail, sendMaterialRequestEmail };
+  const d = new Date(date);
+
+  return d.toLocaleDateString('ru-RU', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+};
+
+const sendTaskAssignedEmail = async ({ to, task, creator_name, priority }) => {
+  const html = `
+    <p>Здравствуйте!</p>
+
+    <p>
+      Вам назначена новая задача в системе <b>DreamHouse</b>.
+    </p>
+
+    <p>
+      <b>Название задачи:</b> ${task.title}<br/>
+      <b>Описание:</b> ${task.description || '—'}<br/>
+      <b>Срок выполнения:</b> ${formatDate(task.deadline) || 'не указан'}<br/>
+      <b>Назначил:</b> ${creator_name || 'Руководитель'}<br/>
+      <b>Приоритет:</b> ${priority || '—'}
+    </p>
+
+    <p style="margin-top:20px;">
+      Пожалуйста, перейдите в систему для выполнения задачи.
+    </p>
+
+    <p style="font-size:12px; color:#888;">
+      Это письмо сформировано автоматически системой DreamHouse.
+    </p>
+  `;
+
+  await mailer.sendMail({
+    from: `"DreamHouse" <${process.env.SMTP_USER}>`,
+    to,
+    subject: `Новая задача: ${task.title}`,
+    html
+  });
+
+};
+
+
+
+const sendTaskDeadlineReminderEmail = async ({
+  to,
+  task,
+  daysLeft
+}) => {
+
+  const html = `
+    <p><b>До срока выполнения осталось ${daysLeft} ${daysLeft === 1 ? 'день' : 'дня'}</b></p>
+
+    <p>
+      <b>Задача:</b> ${task.title}
+    </p>
+
+    <p>
+      <b>Описание:</b><br/>
+      ${task.description || '—'}
+    </p>
+
+    <p>
+      <b>Срок выполнения:</b> ${formatDate(task.deadline)}
+    </p>
+
+    <p style="font-size:12px;color:#888;">
+      Это автоматическое уведомление системы DreamHouse.
+    </p>
+  `;
+
+  await mailer.sendMail({
+    from: `"DreamHouse" <${process.env.SMTP_USER}>`,
+    to,
+    subject: `Напоминание о задаче`,
+    html
+  });
+
+};
+
+module.exports = { 
+  sendTempPasswordEmail, 
+  sendMaterialRequestEmail,
+  sendTaskAssignedEmail,
+  sendTaskDeadlineReminderEmail
+};

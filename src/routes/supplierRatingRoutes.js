@@ -165,6 +165,12 @@ router.get('/getById/:id', authenticateToken, getSupplierRatingById);
  *                 type: integer
  *                 example: 3
  *                 description: Оценка цены
+ * 
+ *               comment:
+ *                 type: string
+ *                 example: Выполнено на отлично
+ *                 description: Коментарий
+ * 
  *     responses:
  *       201:
  *         description: Рейтинг поставщика успешно создан

@@ -1,12 +1,12 @@
 const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { 
+const {
   getAllPurchaseOrders,
   searchPurchaseOrders,
   getPurchaseOrderById,
   createPurchaseOrder,
   updatePurchaseOrder,
-  deletePurchaseOrder 
+  deletePurchaseOrder
 } = require('../controllers/purchaseOrderController');
 
 const router = express.Router();
@@ -45,19 +45,44 @@ router.get('/gets', authenticateToken, getAllPurchaseOrders);
  *     security:
  *       - bearerAuth: []
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
+ *               search:
+ *                 type: string
+ *                 description: Поиск
+ *                 example: "доска"
+ *               id:
+ *                 type: string
+ *                 description: Поиск по ID заявки (частичное совпадение)
+ *                 example: "12"
  *               project_id:
+ *                 type: integer
+ *                 default: 1
+ *               block_id:
  *                 type: integer
  *                 default: 1
  *               created_user_id:
  *                 type: integer
  *                 default: 1
- *               status:
+ *               statuses:
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: array
+ *                     items:
+ *                       type: integer
+ *               item_statuses:
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: array
+ *                     items:
+ *                       type: integer
+ *                 description: Фильтр по статусам заявки (можно передать один или массив)
+ *                 example: [2, 3]
+ *               supplier_id:
  *                 type: integer
  *                 default: 1
  *               page:
@@ -123,17 +148,14 @@ router.get('/getById/:id', authenticateToken, getPurchaseOrderById);
  *               project_id:
  *                 type: integer
  *                 example: 1
- *                 description: ID проекта
+ * 
+ *               block_id:
+ *                 type: integer
+ *                 default: 1
  * 
  *               created_user_id:
  *                 type: integer
- *                 example: 1
- *                 description: ID Снабженца
- *
- *               comment:
- *                 type: string
- *                 example: Закупка по заявке №2
- *                 description: Комментарий к закупке
+ *                 example: 1 
  *
  *               items:
  *                 type: array
@@ -148,6 +170,8 @@ router.get('/getById/:id', authenticateToken, getPurchaseOrderById);
  *                     - unit_of_measure
  *                     - quantity
  *                     - price
+ *                     - currency
+ *                     - supplier_id  
  *                     - summ
  *                   properties:
  *                     material_request_item_id:
@@ -181,6 +205,19 @@ router.get('/getById/:id', authenticateToken, getPurchaseOrderById);
  *                       format: decimal
  *                       example: 100
  *                       description: Цена за единицу
+ * 
+ *                     currency:
+ *                       type: integer
+ *                       example: 1
+ * 
+ *                     currency_rate:
+ *                       type: number
+ *                       format: decimal
+ *                       example: 100
+ * 
+ *                     supplier_id:
+ *                       type: integer
+ *                       example: 1
  *
  *                     summ:
  *                       type: number

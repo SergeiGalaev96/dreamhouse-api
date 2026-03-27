@@ -28,26 +28,45 @@ const getAllContractors = async (req, res) => {
 
 const searchContractors = async (req, res) => {
   try {
+
     let {
-      number,
+      search,
       page = 1,
       size = 10
     } = req.body;
 
     page = Number(page);
     size = Number(size);
+
     const offset = (page - 1) * size;
 
-    const whereClause = {};
+    const whereClause = {deleted: false};
 
-    if (number)
-      whereClause.name = { [Op.iLike]: `%${number}%` };
+    if (search && search.trim() !== "") {
+
+      const s = `%${search.trim()}%`;
+
+      whereClause[Op.or] = [
+        { name: { [Op.iLike]: s } },
+        { inn: { [Op.iLike]: s } },
+        { kpp: { [Op.iLike]: s } },
+        { ogrn: { [Op.iLike]: s } },
+        { phone: { [Op.iLike]: s } },
+        { email: { [Op.iLike]: s } },
+        { address: { [Op.iLike]: s } }
+      ];
+
+    }
 
     const { count, rows } = await Contractor.findAndCountAll({
+
       where: whereClause,
+
       limit: size,
       offset: offset,
-      order: [["created_at", "DESC"]],
+
+      order: [["created_at", "DESC"]]
+
     });
 
     res.json({
@@ -64,11 +83,15 @@ const searchContractors = async (req, res) => {
     });
 
   } catch (error) {
+
+    console.error("Ошибка поиска контрагентов:", error);
+
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при поиске Контракторов",
       error: error.message
     });
+
   }
 };
 

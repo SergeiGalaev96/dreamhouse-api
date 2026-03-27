@@ -4,7 +4,9 @@ const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllDocuments = async (req, res) => {
   try {
+
     const whereClause = { deleted: false };
+
     const { count, rows } = await Document.findAndCountAll({
       where: whereClause,
       order: [['created_at', 'DESC']]
@@ -14,29 +16,30 @@ const getAllDocuments = async (req, res) => {
       success: true,
       data: rows,
       pagination: {
-        // page: parseInt(page),
-        // size: parseInt(size),
-        total: count,
-        // pages: Math.ceil(count / size)
+        total: count
       }
     });
+
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при получении документов',
       error: error.message
     });
+
   }
 };
 
+
 const searchDocuments = async (req, res) => {
   try {
+
     let {
-      project_id,
-      stage_id,
+      entity_type,
+      entity_id,
       name,
       description,
-      // search,
       status,
       page = 1,
       size = 10
@@ -44,30 +47,39 @@ const searchDocuments = async (req, res) => {
 
     page = Number(page);
     size = Number(size);
+
     const offset = (page - 1) * size;
 
-    const whereClause = {};
+    const whereClause = {
+      deleted: false
+    };
 
-    // Поиск по name / number / description
-    // if (search) {
-    //   whereClause[Op.or] = [
-    //     { name: { [Op.iLike]: `%${search}%` } },
-    //     { number: { [Op.iLike]: `%${search}%` } },
-    //     { description: { [Op.iLike]: `%${search}%` } }
-    //   ];
-    // }
-    if (project_id) whereClause.project_id = Number(project_id);
-    if (stage_id) whereClause.stage_id = Number(stage_id);
-    if (name) whereClause.name = { [Op.iLike]: `%${name}%` };
-    if (description) whereClause.name = { [Op.iLike]: `%${description}%` };
+    if (entity_type) whereClause.entity_type = entity_type;
+    if (entity_id) whereClause.entity_id = Number(entity_id);
+
+    if (name) {
+      whereClause.name = {
+        [Op.iLike]: `%${name}%`
+      };
+    }
+
+    if (description) {
+      whereClause.description = {
+        [Op.iLike]: `%${description}%`
+      };
+    }
+
     if (status) whereClause.status = status;
 
-
     const { count, rows } = await Document.findAndCountAll({
+
       where: whereClause,
+
       limit: size,
       offset: offset,
-      order: [["created_at", "DESC"]],
+
+      order: [["created_at", "DESC"]]
+
     });
 
     res.json({
@@ -84,17 +96,22 @@ const searchDocuments = async (req, res) => {
     });
 
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при поиске документов",
       error: error.message
     });
+
   }
 };
 
+
 const getDocumentById = async (req, res) => {
   try {
+
     const { id } = req.params;
+
     const document = await Document.findByPk(id);
 
     if (!document) {
@@ -108,19 +125,34 @@ const getDocumentById = async (req, res) => {
       success: true,
       data: document
     });
+
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при получении документа',
       error: error.message
     });
+
   }
 };
 
+
 const createDocument = async (req, res) => {
   try {
+
+    const { entity_type, entity_id } = req.body;
+
+    if (!entity_type || !entity_id) {
+      return res.status(400).json({
+        success: false,
+        message: "entity_type и entity_id обязательны"
+      });
+    }
+
     const documentData = {
       ...req.body,
+      entity_id: Number(entity_id),
       uploaded_by: req.user.id
     };
 
@@ -131,17 +163,22 @@ const createDocument = async (req, res) => {
       message: 'Документ успешно создан',
       data: document
     });
+
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при создании документа',
       error: error.message
     });
+
   }
 };
 
+
 const updateDocument = async (req, res) => {
   try {
+
     const { id } = req.params;
     const { comment, ...data } = req.body;
 
@@ -171,20 +208,26 @@ const updateDocument = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error('updateDocument error:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при обновлении документа',
       error: error.message
     });
+
   }
 };
 
+
 const deleteDocument = async (req, res) => {
   try {
+
     const { id } = req.params;
+
     const deleted = await Document.destroy({
-      where: { id: id }
+      where: { id }
     });
 
     if (!deleted) {
@@ -198,15 +241,17 @@ const deleteDocument = async (req, res) => {
       success: true,
       message: 'Документ успешно удален'
     });
+
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при удалении документа',
       error: error.message
     });
+
   }
 };
-
 
 
 module.exports = {

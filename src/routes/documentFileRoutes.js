@@ -2,7 +2,7 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const upload = require('../middleware/uploadDocumentFile');
 const {
-  uploadDocumentFile,
+  uploadDocumentFiles,
   getDocumentFiles,
   downloadDocumentFile,
   deleteDocumentFile
@@ -41,7 +41,7 @@ router.get('/files/:document_id', authenticateToken, getDocumentFiles);
  * @swagger
  * /api/documentFiles/upload/{document_id}:
  *   post:
- *     summary: Загрузить файл в документ
+ *     summary: Загрузить файлы в документ
  *     tags: [DocumentFiles]
  *     security:
  *       - bearerAuth: []
@@ -51,6 +51,7 @@ router.get('/files/:document_id', authenticateToken, getDocumentFiles);
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID документа
  *     requestBody:
  *       required: true
  *       content:
@@ -58,16 +59,26 @@ router.get('/files/:document_id', authenticateToken, getDocumentFiles);
  *           schema:
  *             type: object
  *             properties:
- *               file:
- *                 type: string
- *                 format: binary
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
  *     responses:
  *       201:
- *         description: Файл загружен
+ *         description: Файлы успешно загружены
+ *       400:
+ *         description: Файлы не переданы или тип файла запрещён
+ *       403:
+ *         description: Нельзя добавлять файлы в текущем статусе документа
+ *       404:
+ *         description: Документ не найден
  *       409:
- *         description: Файл с таким именем уже существует
+ *         description: Один из файлов уже существует
+ *       500:
+ *         description: Ошибка сервера
  */
-router.post('/upload/:document_id',  authenticateToken, upload.single('file'), uploadDocumentFile);
+router.post('/upload/:document_id',  authenticateToken, upload.array('files', 20), uploadDocumentFiles);
 
 /**
  * @swagger

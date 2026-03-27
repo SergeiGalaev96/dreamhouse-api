@@ -20,6 +20,18 @@ const SupplierRating = sequelize.define('SupplierRating', {
   price: {
     type: DataTypes.INTEGER
   },
+  comment: {
+    type: DataTypes.TEXT
+  },
+  created_at: {
+    type: DataTypes.DATE
+  },
+  updated_at: {
+    type: DataTypes.DATE
+  },
+  deleted: {
+    type: DataTypes.BOOLEAN
+  }
 }, {
   schema: 'construction',
   tableName: 'supplier_rating',

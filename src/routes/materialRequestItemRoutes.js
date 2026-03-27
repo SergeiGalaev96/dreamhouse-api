@@ -3,7 +3,6 @@ const { authenticateToken, authorizeRole } = require('../middleware/auth');
 const {
     getAllMaterialRequestItems,
     searchMaterialRequestItems,
-    searchMaterialsForPurchasingAgent,
     getMaterialRequestItemById,
     createMaterialRequestItem,
     updateMaterialRequestItem,
@@ -40,45 +39,8 @@ router.get('/gets', authenticateToken, getAllMaterialRequestItems);
  * @swagger
  * /api/materialRequestItems/search:
  *   post:
- *     summary: Поиск материалов в заявках
- *     description: Выполняет поиск материалов в заявках
- *     tags:
- *       - MaterialRequestItems
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               material_request_id:
- *                 type: integer
- *               page:
- *                 type: integer
- *                 example: 1
- *               size:
- *                 type: integer
- *                 example: 10
- *     responses:
- *       200:
- *         description: Успешный поиск материалов в заявках
- *       401:
- *         description: Неавторизован
- *       403:
- *         description: Доступ запрещён
- *       500:
- *         description: Ошибка сервера
- */
-router.post('/search', authenticateToken, searchMaterialRequestItems);
-
-/**
- * @swagger
- * /api/materialRequestItems/purchasingAgentSearch:
- *   post:
  *     summary: Поиск материалов для снабженца с подсчетом заказанного
- *     description: Возвращает материалы из заявок и количество уже заказанного из purchase_order_items
+ *     description: Возвращает материалы из заявок, поддерживает поиск по названию материала и ID, фильтрацию по статусам заявки, а также считает количество уже заказанного
  *     tags:
  *       - MaterialRequestItems
  *     security:
@@ -90,12 +52,30 @@ router.post('/search', authenticateToken, searchMaterialRequestItems);
  *           schema:
  *             type: object
  *             properties:
+ *               search:
+ *                 type: string
+ *                 description: Поиск по названию материала или ID материала
+ *                 example: "цемент"
  *               material_type:
  *                 type: integer
+ *                 example: 2
  *               material_id:
  *                 type: integer
+ *                 example: 15
  *               project_id:
  *                 type: integer
+ *                 example: 1
+ *               block_id:
+ *                 type: integer
+ *                 example: 3
+ *               statuses:
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: array
+ *                     items:
+ *                       type: integer
+ *                 description: Фильтр по статусам заявки (можно передать один или массив)
+ *                 example: [2, 3]
  *               page:
  *                 type: integer
  *                 example: 1
@@ -129,6 +109,15 @@ router.post('/search', authenticateToken, searchMaterialRequestItems);
  *                         type: number
  *                       total_ordered:
  *                         type: number
+ *                       remaining_quantity:
+ *                         type: number
+ *                       material:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           name:
+ *                             type: string
  *                 pagination:
  *                   type: object
  *                   properties:
@@ -151,7 +140,7 @@ router.post('/search', authenticateToken, searchMaterialRequestItems);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/purchasingAgentSearch', authenticateToken, searchMaterialsForPurchasingAgent);
+router.post('/search', authenticateToken, searchMaterialRequestItems);
 
 /**
  * @swagger
@@ -231,7 +220,7 @@ router.get('/getById/:id', authenticateToken, getMaterialRequestItemById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, authorizeRole(1), createMaterialRequestItem);
+router.post('/create', authenticateToken, createMaterialRequestItem);
 
 /**
  * @swagger
@@ -287,7 +276,7 @@ router.post('/create', authenticateToken, authorizeRole(1), createMaterialReques
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, authorizeRole(1, 2, 3), updateMaterialRequestItem);
+router.put('/update/:id', authenticateToken, updateMaterialRequestItem);
 
 /**
  * @swagger

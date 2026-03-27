@@ -1,13 +1,14 @@
 const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { validateSupplier } = require('../middleware/validation');
-const { 
+// const { validateSupplier } = require('../middleware/validation');
+const {
   getAllSuppliers,
+  recommendSuppliers,
   searchSuppliers,
-  getSupplierById, 
-  createSupplier, 
-  updateSupplier, 
-  deleteSupplier 
+  getSupplierById,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier
 } = require('../controllers/supplierController');
 
 const router = express.Router();
@@ -36,6 +37,67 @@ const router = express.Router();
  *         description: Ошибка сервера
  */
 router.get('/gets', authenticateToken, getAllSuppliers);
+
+/**
+ * @swagger
+ * /api/suppliers/recommend/{material_id}/{currency}:
+ *   get:
+ *     summary: Получение списка рекомендованных поставщиков
+ *     description: Возвращает список поставщиков с лучшей ценой и рейтингом по материалу с учётом выбранной валюты
+ *     tags: [Suppliers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: material_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID материала
+ *         example: 1
+ *       - in: path
+ *         name: currency
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Валюта для сравнения (например USD, KGS, RUB)
+ *         example: USD
+ *     responses:
+ *       200:
+ *         description: Список поставщиков
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       best_price:
+ *                         type: number
+ *                         description: Лучшая цена поставщика в выбранной валюте
+ *                       avg_rating:
+ *                         type: number
+ *                         description: Средний рейтинг поставщика
+ *                       ratings_count:
+ *                         type: integer
+ *                         description: Количество оценок
+ *       401:
+ *         description: Неавторизованный доступ
+ *       500:
+ *         description: Ошибка сервера
+ */
+router.get('/recommend/:material_id/:currency', authenticateToken, recommendSuppliers);
+
+
 
 
 /**

@@ -1,8 +1,6 @@
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 const sequelize = require('../config/database');
-const PurchaseOrder = require('../models/PurchaseOrder');
-const PurchaseOrderItem = require('../models/PurchaseOrderItem');
-const { MaterialRequestItem, MaterialRequest } = require('../models');
+const { Project, ProjectBlock, Material, MaterialRequestItem, MaterialRequest, PurchaseOrder, PurchaseOrderItem } = require('../models');
 const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllPurchaseOrders = async (req, res) => {
@@ -43,8 +41,12 @@ const searchPurchaseOrders = async (req, res) => {
   try {
     const {
       project_id,
+      block_id,
       created_user_id,
-      status,
+      statuses,
+      supplier_id,
+      item_statuses,
+      search,
       page = 1,
       size = 10
     } = req.body;
@@ -54,25 +56,119 @@ const searchPurchaseOrders = async (req, res) => {
     const whereClause = { deleted: false };
 
     if (project_id) whereClause.project_id = project_id;
+    if (block_id) whereClause.block_id = block_id;
     if (created_user_id) whereClause.created_user_id = created_user_id;
-    if (status) whereClause.status = status;
+
+    /* ============================================================
+       СТАТУСЫ PO
+    ============================================================ */
+
+    const poStatusFilter = Array.isArray(statuses)
+      ? statuses
+      : statuses != null
+        ? [statuses]
+        : null;
+
+    if (poStatusFilter) {
+      whereClause.status = { [Op.in]: poStatusFilter };
+    }
+
+    /* ============================================================
+       СТАТУСЫ ITEMS
+    ============================================================ */
+
+    const itemStatusFilter = Array.isArray(item_statuses)
+      ? item_statuses
+      : item_statuses != null
+        ? [item_statuses]
+        : null;
+
+    /* ============================================================
+       SEARCH (ОР логика)
+    ============================================================ */
+
+    const searchValue = search?.trim();
+
+    if (searchValue) {
+      const s = `%${searchValue}%`;
+
+      whereClause[Op.or] = [
+        Sequelize.where(Sequelize.col('project.name'), {
+          [Op.iLike]: s
+        }),
+        Sequelize.where(Sequelize.col('block.name'), {
+          [Op.iLike]: s
+        }),
+        Sequelize.where(Sequelize.col('items->material.name'), {
+          [Op.iLike]: s
+        }),
+        ...(!isNaN(searchValue)
+          ? [
+            Sequelize.where(
+              Sequelize.cast(Sequelize.col('PurchaseOrder.id'), 'TEXT'),
+              {
+                [Op.iLike]: `%${searchValue}%`
+              }
+            )
+          ]
+          : [])
+      ];
+    }
+
+    /* ============================================================
+       INCLUDE
+    ============================================================ */
+
+    const include = [
+      {
+        model: Project,
+        as: 'project',
+        attributes: ['id', 'name'],
+        required: false
+      },
+      {
+        model: ProjectBlock,
+        as: 'block',
+        attributes: ['id', 'name'],
+        required: false
+      },
+      {
+        model: PurchaseOrderItem,
+        as: 'items',
+        required: !!supplier_id || !!itemStatusFilter || !!searchValue,
+        where: {
+          deleted: false,
+          ...(itemStatusFilter && {
+            status: { [Op.in]: itemStatusFilter }
+          }),
+          ...(supplier_id && { supplier_id })
+        },
+        include: [
+          {
+            model: Material,
+            as: 'material',
+            attributes: ['id', 'name'],
+            required: false // ❗ важно для OR
+          }
+        ]
+      }
+    ];
+
+    /* ============================================================
+       QUERY
+    ============================================================ */
 
     const { count, rows } = await PurchaseOrder.findAndCountAll({
       where: whereClause,
       distinct: true,
-      col: "id",
+      subQuery: false, // 🔥 ключевой фикс
+
       limit: Number(size),
       offset: Number(offset),
+
       order: [['created_at', 'DESC']],
 
-      include: [
-        {
-          model: PurchaseOrderItem,
-          as: 'items',
-          required: false,          // НЕ INNER JOIN → заявка может быть без items
-          where: { deleted: false },
-        }
-      ]
+      include
     });
 
     res.json({
@@ -90,6 +186,7 @@ const searchPurchaseOrders = async (req, res) => {
 
   } catch (error) {
     console.error('Ошибка поиска заявок на материалы:', error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при поиске заявок на материалы',

@@ -1,5 +1,6 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
+
 const { 
   getAllDocuments,
   searchDocuments,
@@ -52,29 +53,29 @@ router.get('/gets', authenticateToken, getAllDocuments);
  *           schema:
  *             type: object
  *             properties:
- *               project_id:
+ *               entity_type:
+ *                 type: string
+ *                 example: task
+ *                 description: Тип объекта (task, project, purchase_order и т.д.)
+ *               entity_id:
  *                 type: integer
- *                 example: 1
- *               stage_id:
- *                 type: integer
- *                 example: 1
+ *                 example: 12
+ *                 description: ID объекта
  *               status:
  *                 type: integer
  *                 example: 1
  *               name:
  *                 type: string
- *                 example: "string"
+ *                 example: "Договор"
  *               description:
  *                 type: string
- *                 example: "string"
+ *                 example: "Техническая документация"
  *               page:
  *                 type: integer
- *                 description: Номер страницы
  *                 default: 1
  *                 example: 1
  *               size:
  *                 type: integer
- *                 description: Количество записей на странице
  *                 default: 10
  *                 example: 10
  *     responses:
@@ -86,6 +87,7 @@ router.get('/gets', authenticateToken, getAllDocuments);
  *         description: Ошибка сервера
  */
 router.post('/search', authenticateToken, searchDocuments);
+
 
 /**
  * @swagger
@@ -114,6 +116,7 @@ router.post('/search', authenticateToken, searchDocuments);
  */
 router.get('/getById/:id', authenticateToken, getDocumentById);
 
+
 /**
  * @swagger
  * /api/documents/create:
@@ -129,47 +132,31 @@ router.get('/getById/:id', authenticateToken, getDocumentById);
  *           schema:
  *             type: object
  *             required:
+ *               - entity_type
+ *               - entity_id
  *               - name
  *             properties:
- *               project_id:
+ *               entity_type:
+ *                 type: string
+ *                 example: task
+ *                 description: Тип объекта
+ *               entity_id:
  *                 type: integer
- *                 nullable: true
  *                 example: 12
- *                 description: ID проекта
- *               stage_id:
- *                 type: integer
- *                 example: 1
- *                 description: ID этапа
+ *                 description: ID объекта
  *               name:
  *                 type: string
  *                 maxLength: 200
- *                 example: Модернизация объекта
- *                 description: Название документа
+ *                 example: Договор
  *               status:
  *                 type: integer
  *                 example: 1
- *                 description: Статус документа
- *               price:
- *                 type: number
- *                 format: decimal
- *                 example: 15000.50
- *                 description: Стоимость
  *               description:
  *                 type: string
- *                 nullable: true
  *                 example: Техническая документация
- *                 description: Описание документа
  *               deadline:
  *                 type: string
- *                 nullable: true
  *                 example: 2026-03-01
- *                 description: Срок выполнения
- *               responsible_users:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 example: [1, 5, 12]
- *                 description: ID ответственных пользователей
  *     responses:
  *       201:
  *         description: Документ успешно создан
@@ -205,45 +192,18 @@ router.post('/create', authenticateToken, createDocument);
  *           schema:
  *             type: object
  *             properties:
- *               project_id:
- *                 type: integer
- *                 nullable: true
- *                 example: 15
- *                 description: ID проекта
- *               stage_id:
- *                 type: integer
- *                 example: 2
- *                 description: ID этапа
  *               name:
  *                 type: string
- *                 maxLength: 200
- *                 example: Обновлённое название документа
- *                 description: Название документа
+ *                 example: Обновленный документ
  *               status:
  *                 type: integer
  *                 example: 2
- *                 description: Статус документа
- *               price:
- *                 type: number
- *                 format: decimal
- *                 example: 21000.00
- *                 description: Стоимость
  *               description:
  *                 type: string
- *                 nullable: true
- *                 example: Обновлённое описание
- *                 description: Описание документа
+ *                 example: Новое описание
  *               deadline:
  *                 type: string
- *                 nullable: true
- *                 example: 2026-04-15
- *                 description: Срок выполнения
- *               responsible_users:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 example: [3, 7]
- *                 description: ID ответственных пользователей
+ *                 example: 2026-04-01
  *     responses:
  *       200:
  *         description: Документ успешно обновлён
@@ -255,6 +215,7 @@ router.post('/create', authenticateToken, createDocument);
  *         description: Ошибка сервера
  */
 router.put('/update/:id', authenticateToken, updateDocument);
+
 
 /**
  * @swagger

@@ -19,12 +19,37 @@ function parseNbkrDate(nbkrDate) {
   return isNaN(date) ? null : date;
 }
 
+async function retry(fn, attempts = 3, delay = 2000) {
+
+  let lastError;
+
+  for (let i = 0; i < attempts; i++) {
+
+    try {
+      return await fn();
+    } catch (err) {
+
+      lastError = err;
+
+      console.log(`⚠️ Retry ${i + 1}/${attempts} failed`);
+
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+    }
+
+  }
+
+  throw lastError;
+}
+
 async function fetchNbkrRates() {
 
   const response = await retry(
-    () => axios.get(NBKR_URL, { timeout: 30000 }),
+    () => axios.get(NBKR_URL, { timeout: 30000, responseType: 'text' }),
     5,      // попыток
-    4000    // пауза
+    400    // пауза
   );
 
   const parser = new xml2js.Parser({

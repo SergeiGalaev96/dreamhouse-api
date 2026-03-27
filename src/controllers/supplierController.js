@@ -86,6 +86,119 @@ const getAllSuppliers = async (req, res) => {
   }
 };
 
+const recommendSuppliers = async (req, res) => {
+  try {
+
+    const { material_id, currency } = req.params;
+
+    if (!material_id) {
+      return res.status(400).json({
+        success: false,
+        message: "material_id обязателен"
+      });
+    }
+
+    if (!currency) {
+      return res.status(400).json({
+        success: false,
+        message: "currency header обязателен"
+      });
+    }
+
+    const materialId = Number(material_id);
+
+    const suppliers = await Supplier.findAll({
+      where: {
+        deleted: false
+      },
+
+      subQuery: false,
+
+      attributes: {
+        include: [
+
+          /* ============================================================
+             ЛУЧШАЯ ЦЕНА В НУЖНОЙ ВАЛЮТЕ
+          ============================================================ */
+          [
+            Sequelize.literal(`
+              (
+                SELECT MIN(
+                  CASE
+                    WHEN poi.currency = '${currency}'
+                      THEN poi.price
+                    ELSE poi.price * COALESCE(poi.currency_rate, 1)
+                  END
+                )
+                FROM construction.purchase_order_items poi
+                WHERE poi.supplier_id = "Supplier".id
+                AND poi.material_id = ${materialId}
+                AND poi.status = 4
+              )
+            `),
+            "best_price"
+          ],
+
+          /* ============================================================
+             РЕЙТИНГ
+          ============================================================ */
+          [
+            Sequelize.literal(`
+              ROUND(
+                (
+                  COALESCE(AVG(ratings.quality),0) +
+                  COALESCE(AVG(ratings.time),0) +
+                  COALESCE(AVG(ratings.price),0)
+                ) / 3
+              ,2)::float
+            `),
+            "avg_rating"
+          ],
+
+          [
+            Sequelize.literal(`COUNT(ratings.id)`),
+            "ratings_count"
+          ]
+
+        ]
+      },
+
+      include: [
+        {
+          model: SupplierRating,
+          as: "ratings",
+          attributes: [],
+          required: false
+        }
+      ],
+
+      group: ["Supplier.id"],
+
+      order: [
+        [Sequelize.literal('"best_price"'), 'ASC NULLS LAST'],
+        [Sequelize.literal('"avg_rating"'), 'DESC']
+      ]
+
+    });
+
+    res.json({
+      success: true,
+      data: suppliers
+    });
+
+  } catch (error) {
+
+    console.error("Ошибка получения поставщиков:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Ошибка сервера",
+      error: error.message
+    });
+
+  }
+};
+
 const searchSuppliers = async (req, res) => {
   try {
 
@@ -326,6 +439,7 @@ const deleteSupplier = async (req, res) => {
 
 module.exports = {
   getAllSuppliers,
+  recommendSuppliers,
   searchSuppliers,
   getSupplierById,
   createSupplier,

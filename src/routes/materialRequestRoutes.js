@@ -1,12 +1,12 @@
 const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { 
+const {
   getAllMaterialRequests,
   searchMaterialRequests,
   getMaterialRequestById,
   createMaterialRequest,
   updateMaterialRequest,
-  deleteMaterialRequest 
+  deleteMaterialRequest
 } = require('../controllers/materialRequestController');
 
 const router = express.Router();
@@ -41,31 +41,60 @@ router.get('/gets', authenticateToken, getAllMaterialRequests);
  * /api/materialRequests/search:
  *   post:
  *     summary: Поиск и фильтрация заявок на материалы
+ *     description: Поддерживает поиск по ID заявки, названию материала, а также фильтрацию по статусам заявки и статусам позиций
  *     tags: [MaterialRequests]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
+ *               search:
+ *                 type: string
+ *                 description: Универсальный поиск (ID заявки или название материала)
+ *                 example: "гвозди"
  *               project_id:
  *                 type: integer
- *                 default: 1
- *               status:
+ *                 description: ID проекта
+ *                 example: 1
+ *               block_id:
  *                 type: integer
- *                 default: 1
+ *                 description: ID блока
+ *                 example: 2
+ *               statuses:
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: array
+ *                     items:
+ *                       type: integer
+ *                 description: Статус(ы) заявки
+ *                 example: [1, 2]
+ *               item_statuses:
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: array
+ *                     items:
+ *                       type: integer
+ *                 description: Статус(ы) позиций заявки (MaterialRequestItem)
+ *                 example: [2, 5]
  *               page:
  *                 type: integer
+ *                 description: Номер страницы
  *                 default: 1
+ *                 example: 1
  *               size:
  *                 type: integer
+ *                 description: Количество записей на странице
  *                 default: 10
+ *                 example: 10
  *     responses:
  *       200:
  *         description: Список заявок на материалы
+ *       401:
+ *         description: Неавторизован
  *       500:
  *         description: Ошибка сервера
  */
@@ -120,6 +149,10 @@ router.get('/getById/:id', authenticateToken, getMaterialRequestById);
  *                 type: integer
  *                 example: 1
  *                 description: ID проекта
+ *               block_id:
+ *                 type: integer
+ *                 example: 1
+ *                 description: ID проекта
  *               items:
  *                 type: array
  *                 minItems: 1
@@ -152,6 +185,14 @@ router.get('/getById/:id', authenticateToken, getMaterialRequestById);
  *                       format: decimal
  *                       example: 50
  *                       description: Запрашиваемое количество
+ *                     stage_id:
+ *                       type: integer
+ *                       example: 9
+ *                       description: ID атапа
+ *                     subsection_id:
+ *                       type: integer
+ *                       example: 9
+ *                       description: ID подэтапа
  *
  *                     comment:
  *                       type: string
@@ -168,8 +209,6 @@ router.get('/getById/:id', authenticateToken, getMaterialRequestById);
  *         description: Ошибка сервера
  */
 router.post('/create', authenticateToken, createMaterialRequest);
-
-
 
 /**
  * @swagger

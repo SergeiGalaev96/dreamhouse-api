@@ -9,13 +9,27 @@ WorkPerformedItem.init({
 		primaryKey: true,
 		autoIncrement: true
 	},
+	service_type: {
+		type: DataTypes.INTEGER,
+		allowNull: false
+	},
+	service_id: {
+		type: DataTypes.INTEGER,
+		allowNull: false
+	},
+
 	name: {
 		type: DataTypes.TEXT,
 		allowNull: false
 	},
+	stage_id: {
+		type: DataTypes.INTEGER
+	},
+	subsection_id: {
+		type: DataTypes.INTEGER
+	},
 	item_type: {
-		type: DataTypes.INTEGER,
-		allowNull: false
+		type: DataTypes.INTEGER
 	},
 	unit_of_measure: {
 		type: DataTypes.INTEGER,

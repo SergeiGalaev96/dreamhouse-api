@@ -8,6 +8,10 @@ PurchaseOrder.init({
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  block_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   status: {
     type: DataTypes.INTEGER,
     allowNull: true

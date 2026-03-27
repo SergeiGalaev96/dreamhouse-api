@@ -8,7 +8,7 @@ const getAllProjectStatuses = async (req, res) => {
 
     const { count, rows } = await Project.findAndCountAll({
       where: whereClause,
-      order: [['created_at', 'DESC']]
+      order: [['created_at', 'ASC']]
     });
 
     res.json({

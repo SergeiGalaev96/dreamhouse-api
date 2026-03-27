@@ -46,7 +46,7 @@ router.get('/gets', authenticateToken, getAllPurchaseOrderItems);
  *       - PurchaseOrderItems
  *     security:
  *       - bearerAuth: []
- *     orderBody:
+ *     requestBody:
  *       required: false
  *       content:
  *         application/json:
@@ -266,7 +266,7 @@ router.post('/create', authenticateToken, createPurchaseOrderItem);
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, authorizeRole(1, 2, 3), updatePurchaseOrderItem);
+router.put('/update/:id', authenticateToken, updatePurchaseOrderItem);
 
 /**
  * @swagger

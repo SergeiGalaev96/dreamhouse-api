@@ -41,124 +41,129 @@ function sanitizeFileName(name) {
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '');
 }
-const uploadDocumentFile = async (req, res) => {
+const uploadDocumentFiles = async (req, res) => {
   try {
+
+    console.log(req.files);
+
     const documentId = Number(req.params.document_id);
 
-    if (!req.file) {
-      return res.status(400).json({ message: 'Файл не передан' });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'Файлы не переданы' });
     }
 
-    const safeUnlinkTmp = () => {
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+    const safeUnlinkTmp = (file) => {
+      if (file && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
       }
     };
 
-    // 1️⃣ Документ
+    // 1️⃣ Проверяем документ
     const document = await Document.findByPk(documentId);
+
     if (!document || document.deleted) {
-      safeUnlinkTmp();
+      req.files.forEach(safeUnlinkTmp);
       return res.status(404).json({ message: 'Документ не найден' });
     }
 
-    // 2️⃣ Статус документа
-    if (![1, 2].includes(document.status)) {
-      safeUnlinkTmp();
-      return res.status(403).json({
-        message: 'Нельзя добавлять файлы в этом статусе документа'
-      });
-    }
+    // 2️⃣ Проверяем статус
+    // if (![1, 2].includes(document.status)) {
+    //   req.files.forEach(safeUnlinkTmp);
+    //   return res.status(403).json({
+    //     message: 'Нельзя добавлять файлы в этом статусе документа'
+    //   });
+    // }
 
-    // 3️⃣ MIME-type allow list
+    // 3️⃣ MIME allow list
     const ALLOWED_MIME = [
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 
-      // Excel
-      'application/vnd.ms-excel', // .xls
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 
-      // Images
       'image/jpeg',
       'image/png',
       'image/webp'
     ];
 
-    if (!ALLOWED_MIME.includes(req.file.mimetype)) {
-      safeUnlinkTmp();
-      return res.status(400).json({
-        message: 'Недопустимый тип файла'
-      });
-    }
-
-    // 4️⃣ Имя файла
-    const originalName = fixEncoding(req.file.originalname);
-    const safeName = sanitizeFileName(originalName);
-    // const originalName = sanitizeFileName(req.file.originalname);
-
-    // 5️⃣ Проверка дубликата
-    const exists = await DocumentFile.findOne({
-      where: {
-        document_id: documentId,
-        name: safeName,
-        deleted: false
-      }
-    });
-
-    if (exists) {
-      safeUnlinkTmp();
-      return res.status(409).json({
-        message: 'Файл с таким именем уже существует. Переименуйте файл.'
-      });
-    }
-
-    // 6️⃣ Папка документа
+    // 4️⃣ Папка документа
     const documentDir = path.join(UPLOAD_ROOT, String(documentId));
+
     if (!fs.existsSync(documentDir)) {
       fs.mkdirSync(documentDir, { recursive: true });
     }
 
-    // 7️⃣ ФИЗИЧЕСКИЙ путь (ТОЛЬКО для fs)
-    const physicalPath = path.join(documentDir, safeName);
+    const savedFiles = [];
 
-    // 8️⃣ ОТНОСИТЕЛЬНЫЙ путь (ТОЛЬКО в БД)
-    const relativePath = path
-      .join(String(documentId), safeName)
-      .replace(/\\/g, '/');
+    for (const file of req.files) {
 
-    // 9️⃣ Перемещаем файл
-    fs.renameSync(req.file.path, physicalPath);
+      if (!ALLOWED_MIME.includes(file.mimetype)) {
+        safeUnlinkTmp(file);
+        continue;
+      }
 
-    // 🔟 Запись в БД
-    const file = await DocumentFile.create({
-      document_id: documentId,
-      name: safeName,
-      file_path: relativePath,
-      mime_type: req.file.mimetype,
-      file_size: req.file.size,
-      uploaded_user_id: req.user.id,
-      deleted: false
-    });
+      const originalName = fixEncoding(file.originalname);
+      const safeName = sanitizeFileName(originalName);
+
+      // проверка дубликата
+      const exists = await DocumentFile.findOne({
+        where: {
+          document_id: documentId,
+          name: safeName,
+          deleted: false
+        }
+      });
+
+      if (exists) {
+        safeUnlinkTmp(file);
+        continue;
+      }
+
+      const physicalPath = path.join(documentDir, safeName);
+
+      const relativePath = path
+        .join(String(documentId), safeName)
+        .replace(/\\/g, '/');
+
+      fs.renameSync(file.path, physicalPath);
+
+      const saved = await DocumentFile.create({
+        document_id: documentId,
+        name: safeName,
+        file_path: relativePath,
+        mime_type: file.mimetype,
+        file_size: file.size,
+        uploaded_user_id: req.user.id,
+        deleted: false
+      });
+
+      savedFiles.push(saved);
+    }
 
     return res.status(201).json({
       success: true,
-      data: file
+      uploaded: savedFiles.length,
+      data: savedFiles
     });
 
   } catch (error) {
+
     console.error(error);
 
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      });
     }
 
     return res.status(500).json({
       success: false,
-      message: 'Ошибка при загрузке файла',
+      message: 'Ошибка при загрузке файлов',
       error: error.message
     });
+
   }
 };
 
@@ -171,11 +176,7 @@ const downloadDocumentFile = async (req, res) => {
       return res.status(404).json({ message: 'Файл не найден' });
     }
 
-    // ✅ собираем АБСОЛЮТНЫЙ путь
-    const absolutePath = path.join(
-      UPLOAD_ROOT,
-      file.file_path
-    );
+    const absolutePath = path.join(UPLOAD_ROOT, file.file_path);
 
     if (!fs.existsSync(absolutePath)) {
       return res.status(404).json({
@@ -183,10 +184,26 @@ const downloadDocumentFile = async (req, res) => {
       });
     }
 
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`
-    );
+    // 🔥 CORS + отображение
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Cache-Control", "no-store");
+
+    // 🔥 ВАЖНО: тип файла
+    res.setHeader("Content-Type", file.mime_type || "application/octet-stream");
+
+    // 🔥 ЕСЛИ картинка — показываем, не скачиваем
+    if (file.mime_type?.startsWith("image")) {
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`
+      );
+    } else {
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`
+      );
+    }
 
     res.sendFile(absolutePath);
 
@@ -231,7 +248,7 @@ const deleteDocumentFile = async (req, res) => {
 };
 
 module.exports = {
-  uploadDocumentFile,
+  uploadDocumentFiles,
   getDocumentFiles,
   downloadDocumentFile,
   deleteDocumentFile

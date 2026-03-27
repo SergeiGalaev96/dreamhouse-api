@@ -30,6 +30,9 @@ MaterialEstimate.init({
 		type: DataTypes.DATE,
 		allowNull: true
 	},
+	name: {
+		type: DataTypes.TEXT
+	},
 	created_at: {
 		type: DataTypes.DATE
 	},

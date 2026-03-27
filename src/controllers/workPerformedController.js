@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { WorkPerformed, WorkPerformedItem } = require('../models');
+const { sequelize, WorkPerformed, WorkPerformedItem } = require('../models');
 const updateWithAudit = require('../utils/updateWithAudit');
 
 
@@ -33,7 +33,9 @@ const getAllWorkPerformed = async (req, res) => {
 const searchWorkPerformed = async (req, res) => {
   try {
     const {
+      block_id,
       code,
+      status,
       page = 1,
       size = 10
     } = req.body;
@@ -41,8 +43,11 @@ const searchWorkPerformed = async (req, res) => {
     const offset = (page - 1) * size;
     const whereClause = { deleted: false };
 
-    if (code)
-      whereClause.code = { [Op.iLike]: `%${code}%` };
+    if (code) whereClause.code = { [Op.iLike]: `%${code}%` };
+    if (block_id) whereClause.block_id = block_id;
+    if (status) whereClause.status = status;
+
+
 
     const { count, rows } = await WorkPerformed.findAndCountAll({
       where: whereClause,
@@ -115,9 +120,38 @@ const getWorkPerformedById = async (req, res) => {
 
 
 const createWorkPerformed = async (req, res) => {
-  try {
+  const transaction = await sequelize.transaction();
 
-    const work = await WorkPerformed.create(req.body);
+  try {
+    const {
+      items = [],
+      ...workData
+    } = req.body;
+
+    /* ============================================================
+       1. СОЗДАЁМ АКТ
+    ============================================================ */
+
+    const work = await WorkPerformed.create(workData, { transaction });
+
+    /* ============================================================
+       2. СОЗДАЁМ ITEMS
+    ============================================================ */
+
+    if (items.length > 0) {
+
+      const preparedItems = items.map(item => ({
+        ...item,
+        work_performed_id: work.id
+      }));
+
+      await WorkPerformedItem.bulkCreate(preparedItems, {
+        transaction
+      });
+
+    }
+
+    await transaction.commit();
 
     res.status(201).json({
       success: true,
@@ -126,6 +160,10 @@ const createWorkPerformed = async (req, res) => {
     });
 
   } catch (error) {
+
+    await transaction.rollback();
+
+    console.error('Ошибка создания АВР:', error);
 
     res.status(500).json({
       success: false,
@@ -141,14 +179,96 @@ const updateWorkPerformed = async (req, res) => {
   try {
 
     const { id } = req.params;
-    const { comment, ...data } = req.body;
+
+    const {
+      signed_by_foreman,
+      signed_by_planning_engineer,
+      signed_by_main_engineer,
+      comment,
+      ...restBody
+    } = req.body;
+
+    /* ============================================================
+       Проверяем наличие акта
+    ============================================================ */
+
+    const workPerformed = await WorkPerformed.findByPk(id);
+
+    if (!workPerformed) {
+      return res.status(404).json({
+        success: false,
+        message: 'Акт выполненных работ не найден'
+      });
+    }
+
+    /* ============================================================
+       Итоговые значения подписей
+    ============================================================ */
+
+    const finalSigns = {
+
+      signed_by_foreman:
+        signed_by_foreman ?? workPerformed.signed_by_foreman,
+
+      signed_by_planning_engineer:
+        signed_by_planning_engineer ?? workPerformed.signed_by_planning_engineer,
+
+      signed_by_main_engineer:
+        signed_by_main_engineer ?? workPerformed.signed_by_main_engineer
+
+    };
+
+    /* ============================================================
+       Проверяем — все ли подписали
+    ============================================================ */
+
+    const isFullySigned =
+      finalSigns.signed_by_foreman === true &&
+      finalSigns.signed_by_planning_engineer === true &&
+      finalSigns.signed_by_main_engineer === true;
+
+    /* ============================================================
+       Автоматическое время подписания
+    ============================================================ */
+
+    const now = new Date();
+
+    const signTimes = {
+
+      ...(signed_by_foreman === true &&
+        !workPerformed.signed_by_foreman_time
+        ? { signed_by_foreman_time: now }
+        : {}),
+
+      ...(signed_by_planning_engineer === true &&
+        !workPerformed.signed_by_planning_engineer_time
+        ? { signed_by_planning_engineer_time: now }
+        : {}),
+
+      ...(signed_by_main_engineer === true &&
+        !workPerformed.signed_by_main_engineer_time
+        ? { signed_by_main_engineer_time: now }
+        : {})
+
+    };
+
+    /* ============================================================
+       Апдейт + аудит
+    ============================================================ */
 
     const result = await updateWithAudit({
       model: WorkPerformed,
       id,
-      data,
+      data: {
+        ...restBody,
+        ...finalSigns,
+        ...signTimes,
+        ...(isFullySigned ? { status: 2 } : {})
+      },
       entityType: 'work_performed',
-      action: 'work_performed_updated',
+      action: isFullySigned
+        ? 'work_performed_signed'
+        : 'work_performed_updated',
       userId: req.user.id,
       comment
     });

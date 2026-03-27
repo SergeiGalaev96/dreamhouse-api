@@ -15,6 +15,9 @@ const Service = sequelize.define('Service', {
     type: DataTypes.STRING(200),
     allowNull: false
   },
+  unit_of_measure: {
+    type: DataTypes.INTEGER
+  },
   created_at: {
     type: DataTypes.DATE
   },

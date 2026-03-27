@@ -24,6 +24,12 @@ const blockStageRoutes = require('./routes/blockStageRoutes');
 // Подэтапы этапа
 const stageSubsectionRoutes = require('./routes/stageSubsectionRoutes');
 
+// Задачи
+const taskRoutes = require('./routes/taskRoutes');
+const taskStatusRoutes = require('./routes/taskStatusRoutes');
+const taskPriorityRoutes = require('./routes/taskPriorityRoutes');
+const startTaskDeadlineNotifierCron = require('./utils/taskDeadlineCron');
+
 // Материалы
 const materialRoutes = require('./routes/materialRoutes');
 const materialTypeRoutes = require('./routes/materialTypeRoutes');
@@ -46,6 +52,8 @@ const materialRequestRoutes = require('./routes/materialRequestRoutes');
 const materialRequestItemRoutes = require('./routes/materialRequestItemRoutes');
 const materialRequestStatusRoutes = require('./routes/materialRequestStatusRoutes');
 const materialRequestItemStatusRoutes = require('./routes/materialRequestItemStatusRoutes');
+const materialRequestItemTypeRoutes = require('./routes/materialRequestItemTypeRoutes');
+
 // Склады
 const warehouseRoutes = require('./routes/warehouseRoutes');
 const warehouseStockRoutes = require('./routes/warehouseStockRoutes');
@@ -64,8 +72,6 @@ const supplierRatingRoutes = require('./routes/supplierRatingRoutes');
 const currencyRoutes = require('./routes/currencyRoutes');
 const currencyRatesRoutes = require('./routes/currencyRatesRoutes');
 const { startCurrencyCron, updateCurrencyRates } = require('./utils/currencyCron');
-
-
 
 const contractRoutes = require('./routes/contractRoutes');
 const contractorRoutes = require('./routes/contractorRoutes');
@@ -173,6 +179,12 @@ app.use('/api/blockStages', blockStageRoutes);
 // Подэтапы этапа
 app.use('/api/stageSubsections', stageSubsectionRoutes);
 
+// Задачи
+app.use('/api/tasks', taskRoutes);
+app.use('/api/taskStatuses', taskStatusRoutes);
+app.use('/api/taskPriorities', taskPriorityRoutes);
+startTaskDeadlineNotifierCron();
+
 // Смета материалов
 app.use('/api/materialEstimates', materialEstimateRoutes);
 app.use('/api/materialEstimateItems', materialEstimateItemRoutes);
@@ -183,8 +195,6 @@ app.use('/api/workPerformed', workPerformedRoutes);
 app.use('/api/workPerformedItems', workPerformedItemRoutes);
 app.use('/api/workPerformedItemTypes', workPerformedItemTypeRoutes);
 
-
-
 // Материалы
 app.use('/api/materials', materialRoutes);
 app.use('/api/materialTypes', materialTypeRoutes);
@@ -194,13 +204,13 @@ app.use('/api/unitsOfMeasure', unitOfMeasureRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/serviceTypes', serviceTypeRoutes);
 
-
-
 // Заявки на материалы
 app.use('/api/materialRequests', materialRequestRoutes);
 app.use('/api/materialRequestStatuses', materialRequestStatusRoutes);
 app.use('/api/materialRequestItems', materialRequestItemRoutes);
 app.use('/api/materialRequestItemStatuses', materialRequestItemStatusRoutes);
+app.use('/api/materialRequestItemTypes', materialRequestItemTypeRoutes);
+
 // Заявки на закуп
 app.use('/api/purchaseOrders', purchaseOrderRoutes);
 app.use('/api/purchaseOrderStatuses', purchaseOrderStatusRoutes);
@@ -228,6 +238,7 @@ app.use('/api/contractors', contractorRoutes);
 // Бригады
 app.use('/api/workTeams', workTeamRoutes);
 app.use('/api/teamMembers', teamMemberRoutes);
+
 // Документы
 app.use('/api/documents', documentRoutes);
 app.use('/api/documentStages', documentStageRoutes);
