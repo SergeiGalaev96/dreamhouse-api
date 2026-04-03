@@ -106,7 +106,6 @@ const searchDocuments = async (req, res) => {
   }
 };
 
-
 const getDocumentById = async (req, res) => {
   try {
 
@@ -136,7 +135,6 @@ const getDocumentById = async (req, res) => {
 
   }
 };
-
 
 const createDocument = async (req, res) => {
   try {

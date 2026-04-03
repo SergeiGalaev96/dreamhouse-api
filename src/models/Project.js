@@ -37,11 +37,7 @@ const Project = sequelize.define('Project', {
     allowNull: true
   },
   planned_budget: {
-    type: DataTypes.DECIMAL(15,2),
-    allowNull: true
-  },
-  actual_budget: {
-    type: DataTypes.DECIMAL(15,2),
+    type: DataTypes.DECIMAL(15, 2),
     allowNull: true
   },
   status: {
@@ -60,7 +56,7 @@ const Project = sequelize.define('Project', {
   warehouse_manager_id: {
     type: DataTypes.INTEGER
   },
-  
+
   description: {
     type: DataTypes.TEXT,
     allowNull: true

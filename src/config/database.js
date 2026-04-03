@@ -31,8 +31,9 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT,
     dialect: 'postgres',
     dialectModule: pg,
+    logging: false,
 
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    // logging: process.env.NODE_ENV === 'development' ? console.log : false,
 
     dialectOptions: {
       application_name: 'dreamhouse-api'

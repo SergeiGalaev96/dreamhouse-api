@@ -51,55 +51,101 @@ const searchProjects = async (req, res) => {
       ];
     }
 
-    if (status)
-      whereClause.status = status;
-
-    if (type)
-      whereClause.type = type;
+    if (status) whereClause.status = status;
+    if (type) whereClause.type = type;
 
     const { count, rows } = await Project.findAndCountAll({
 
       where: whereClause,
-
       limit: Number(size),
       offset: Number(offset),
-
       order: [["created_at", "DESC"]],
 
       attributes: {
-
         include: [
 
+          /* =========================
+             ПРОГРЕСС (FIXED 🔥)
+          ========================== */
           [
             Sequelize.literal(`
               COALESCE((
                 SELECT
-                  ROUND(
-                    (
-                      SUM(wpi.quantity)::float /
-                      NULLIF(SUM(mei.quantity_planned),0)
-                    )::numeric * 100
-                  ,2)::double precision
+                  CASE
+                    WHEN SUM(mei.quantity_planned) = 0 THEN 0
+                    ELSE ROUND(
+                      (
+                        SUM(COALESCE(wpi_sum.done_quantity,0))::numeric /
+                        NULLIF(SUM(mei.quantity_planned)::numeric, 0)
+                      ) * 100
+                    , 2)
+                  END
                 FROM construction.project_blocks pb
                 LEFT JOIN construction.material_estimates me
-                  ON me.block_id = pb.id
-                  AND me.deleted = false
+                  ON me.block_id = pb.id AND me.deleted = false
                 LEFT JOIN construction.material_estimate_items mei
                   ON mei.material_estimate_id = me.id
                   AND mei.item_type = 2
                   AND mei.deleted = false
-                LEFT JOIN construction.work_performed_items wpi
-                  ON wpi.material_estimate_item_id = mei.id
-                  AND wpi.deleted = false
+                LEFT JOIN (
+                  SELECT material_estimate_item_id, SUM(quantity) AS done_quantity
+                  FROM construction.work_performed_items
+                  WHERE deleted = false
+                  GROUP BY material_estimate_item_id
+                ) wpi_sum
+                  ON wpi_sum.material_estimate_item_id = mei.id
                 WHERE pb.project_id = "Project".id
-                AND pb.deleted = false
+                  AND pb.deleted = false
               ),0)
             `),
             "progress_percent"
+          ],
+
+          /* =========================
+             БЮДЖЕТ
+          ========================== */
+          [
+            Sequelize.literal(`
+              COALESCE((
+                SELECT SUM(
+                  wpi.quantity * wpi.price *
+                  CASE
+                    WHEN wpi.currency = 1 THEN 1
+                    ELSE COALESCE(wpi.currency_rate, 1)
+                  END
+                )
+                FROM construction.project_blocks pb
+                LEFT JOIN construction.work_performed wp
+                  ON wp.block_id = pb.id AND wp.deleted = false
+                LEFT JOIN construction.work_performed_items wpi
+                  ON wpi.work_performed_id = wp.id AND wpi.deleted = false
+                WHERE pb.project_id = "Project".id
+                  AND pb.deleted = false
+              ),0)
+              +
+              COALESCE((
+                SELECT SUM(
+                  poi.quantity * poi.price *
+                  CASE
+                    WHEN poi.currency = 1 THEN 1
+                    ELSE COALESCE(poi.currency_rate, 1)
+                  END
+                )
+                FROM construction.project_blocks pb
+                LEFT JOIN construction.purchase_orders po
+                  ON po.block_id = pb.id
+                  AND po.deleted = false
+                  AND po.status IN (4,5)
+                LEFT JOIN construction.purchase_order_items poi
+                  ON poi.purchase_order_id = po.id AND poi.deleted = false
+                WHERE pb.project_id = "Project".id
+                  AND pb.deleted = false
+              ),0)
+            `),
+            "actual_budget"
           ]
 
         ]
-
       }
 
     });
@@ -118,15 +164,12 @@ const searchProjects = async (req, res) => {
     });
 
   } catch (error) {
-
     console.error("Ошибка при поиске проектов:", error);
-
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при поиске проектов",
       error: error.message,
     });
-
   }
 };
 
@@ -139,33 +182,82 @@ const getProjectById = async (req, res) => {
 
       attributes: {
         include: [
+
           [
             Sequelize.literal(`
               COALESCE((
                 SELECT
-                  ROUND(
-                    (
-                      SUM(wpi.quantity)::float /
-                      NULLIF(SUM(mei.quantity_planned),0)
-                    )::numeric * 100
-                  ,2)::double precision
+                  CASE
+                    WHEN SUM(mei.quantity_planned) = 0 THEN 0
+                    ELSE ROUND(
+                      (
+                        SUM(COALESCE(wpi_sum.done_quantity,0))::numeric /
+                        NULLIF(SUM(mei.quantity_planned)::numeric, 0)
+                      ) * 100
+                    , 2)
+                  END
                 FROM construction.project_blocks pb
                 LEFT JOIN construction.material_estimates me
-                  ON me.block_id = pb.id
-                  AND me.deleted = false
+                  ON me.block_id = pb.id AND me.deleted = false
                 LEFT JOIN construction.material_estimate_items mei
                   ON mei.material_estimate_id = me.id
                   AND mei.item_type = 2
                   AND mei.deleted = false
-                LEFT JOIN construction.work_performed_items wpi
-                  ON wpi.material_estimate_item_id = mei.id
-                  AND wpi.deleted = false
+                LEFT JOIN (
+                  SELECT material_estimate_item_id, SUM(quantity) AS done_quantity
+                  FROM construction.work_performed_items
+                  WHERE deleted = false
+                  GROUP BY material_estimate_item_id
+                ) wpi_sum
+                  ON wpi_sum.material_estimate_item_id = mei.id
                 WHERE pb.project_id = "Project".id
-                AND pb.deleted = false
+                  AND pb.deleted = false
               ),0)
             `),
             "progress_percent"
+          ],
+
+          [
+            Sequelize.literal(`
+              COALESCE((
+                SELECT SUM(
+                  wpi.quantity * wpi.price *
+                  CASE
+                    WHEN wpi.currency = 1 THEN 1
+                    ELSE COALESCE(wpi.currency_rate, 1)
+                  END
+                )
+                FROM construction.project_blocks pb
+                LEFT JOIN construction.work_performed wp
+                  ON wp.block_id = pb.id AND wp.deleted = false
+                LEFT JOIN construction.work_performed_items wpi
+                  ON wpi.work_performed_id = wp.id AND wpi.deleted = false
+                WHERE pb.project_id = "Project".id
+                  AND pb.deleted = false
+              ),0)
+              +
+              COALESCE((
+                SELECT SUM(
+                  poi.quantity * poi.price *
+                  CASE
+                    WHEN poi.currency = 1 THEN 1
+                    ELSE COALESCE(poi.currency_rate, 1)
+                  END
+                )
+                FROM construction.project_blocks pb
+                LEFT JOIN construction.purchase_orders po
+                  ON po.block_id = pb.id
+                  AND po.deleted = false
+                  AND po.status IN (4,5)
+                LEFT JOIN construction.purchase_order_items poi
+                  ON poi.purchase_order_id = po.id AND poi.deleted = false
+                WHERE pb.project_id = "Project".id
+                  AND pb.deleted = false
+              ),0)
+            `),
+            "actual_budget"
           ]
+
         ]
       }
 
@@ -184,15 +276,12 @@ const getProjectById = async (req, res) => {
     });
 
   } catch (error) {
-
     console.error("Ошибка получения проекта:", error);
-
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при получении проекта',
       error: error.message
     });
-
   }
 };
 

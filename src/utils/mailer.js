@@ -147,6 +147,38 @@ const sendTaskAssignedEmail = async ({ to, task, creator_name, priority }) => {
 
 };
 
+const sendTaskStatusChangedEmail = async ({ to, task, creator_name, responsible_user_name, priority, status }) => {
+  const html = `
+    <p>Здравствуйте!</p>
+
+    <p>
+      Задача в системе <b>DreamHouse</b> получила новый статус.
+    </p>
+
+    <p>
+      <b>Название задачи:</b> ${task.title}<br/>
+      <b>Описание:</b> ${task.description || '—'}<br/>
+      <b>Срок выполнения:</b> ${formatDate(task.deadline) || 'не указан'}<br/>
+      <b>Назначил:</b> ${creator_name}<br/>
+      <b>Исполнитель:</b> ${responsible_user_name}<br/>
+      <b>Приоритет:</b> ${priority || '—'}<br/>
+      <b>Статус:</b> ${status || '—'}
+    </p>
+
+    <p style="font-size:12px; color:#888;">
+      Это письмо сформировано автоматически системой DreamHouse.
+    </p>
+  `;
+
+  await mailer.sendMail({
+    from: `"DreamHouse" <${process.env.SMTP_USER}>`,
+    to,
+    subject: `Обновление задачи: ${task.title}`,
+    html
+  });
+
+};
+
 
 
 const sendTaskDeadlineReminderEmail = async ({
@@ -185,9 +217,10 @@ const sendTaskDeadlineReminderEmail = async ({
 
 };
 
-module.exports = { 
-  sendTempPasswordEmail, 
+module.exports = {
+  sendTempPasswordEmail,
   sendMaterialRequestEmail,
   sendTaskAssignedEmail,
+  sendTaskStatusChangedEmail,
   sendTaskDeadlineReminderEmail
 };

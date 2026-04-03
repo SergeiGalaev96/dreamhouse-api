@@ -14,9 +14,7 @@ function parseNbkrDate(nbkrDate) {
   if (!nbkrDate) return null;
 
   const [day, month, year] = nbkrDate.split('.');
-  const date = new Date(`${year}-${month}-${day}`);
-
-  return isNaN(date) ? null : date;
+  return `${year}-${month}-${day}`; // 👈 строка ISO
 }
 
 async function retry(fn, attempts = 3, delay = 2000) {
@@ -113,7 +111,10 @@ async function updateCurrencyRates() {
       for (const c of currencies) {
         if (!c.ISOCode || !c.Value) continue;
 
-        const rate = Number(String(c.Value).replace(',', '.'));
+        const rawRate = Number(String(c.Value).replace(',', '.'));
+        if (Number.isNaN(rawRate)) continue;
+
+        const rate = Number((Math.round(rawRate * 100) / 100).toFixed(2));
         if (Number.isNaN(rate)) continue;
 
         const currency = await Currency.findOne({

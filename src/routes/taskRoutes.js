@@ -1,7 +1,7 @@
 const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
 
-const { 
+const {
   getAllTasks,
   searchTasks,
   getTaskById,
@@ -55,6 +55,17 @@ router.get('/gets', authenticateToken, getAllTasks);
  *               search:
  *                 type: string
  *                 example: бетон
+ *               project_id:
+ *                 type: integer
+ *                 default: 20
+ *               statuses:
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: array
+ *                     items:
+ *                       type: integer
+ *                 description: Фильтр по статусам (можно передать один или массив)
+ *                 example: [2, 3]
  *               page:
  *                 type: integer
  *                 default: 1
@@ -115,6 +126,9 @@ router.get('/getById/:id', authenticateToken, getTaskById);
  *               - created_user_id
  *               - responsible_user_id
  *             properties:
+ *               project_id:
+ *                 type: integer
+ *                 example: 20
  *               title:
  *                 type: string
  *                 example: Закупить бетон
@@ -185,6 +199,8 @@ router.post('/create', authenticateToken, createTask);
  *           schema:
  *             type: object
  *             properties:
+ *               project_id:
+ *                 type: integer
  *               title:
  *                 type: string
  *               description:

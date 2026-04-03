@@ -6,11 +6,15 @@ const morgan = require('morgan');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
+// Внутрисистемные уведомления
+const notificationRoutes = require('./routes/notificationRoutes');
+// Логирование изменение записей
+const auditLogRoutes = require('./routes/auditLogRoutes');
 // Импорт маршрутов
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const userRoleRoutes = require('./routes/userRoleRoutes');
-const auditLogRoutes = require('./routes/auditLogRoutes');
+
 // Объекты
 const projectRoutes = require('./routes/projectRoutes');
 const projectTypeRoutes = require('./routes/projectTypeRoutes');
@@ -100,7 +104,12 @@ app.use(cors({
   origin: '*', // разрешить все источники (для локальной разработки)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
-app.use(morgan('combined'));
+// app.use(morgan('combined'));
+app.use(
+  morgan('combined', {
+    skip: (req, res) => res.statusCode < 400
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -164,6 +173,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/userRoles', userRoleRoutes);
+
+// Внутрисистемные уведомления
+app.use('/api/notifications', notificationRoutes);
+
+// Логирование изменение записей
 app.use('/api/auditLog', auditLogRoutes);
 // Объекты
 app.use('/api/projects', projectRoutes);

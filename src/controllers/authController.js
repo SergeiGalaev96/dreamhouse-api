@@ -52,7 +52,9 @@ const login = async (req, res) => {
         first_name: user.first_name,
         last_name: user.last_name,
         role_id: user.role_id,
-        required_action: user.required_action
+        required_action: user.required_action,
+        supplier_id: user.supplier_id,
+        contractor_id: user.contractor_id
       },
       token
     });

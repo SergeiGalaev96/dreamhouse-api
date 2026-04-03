@@ -9,6 +9,10 @@ Task.init({
     primaryKey: true,
     autoIncrement: true
   },
+  project_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   title: {
     type: DataTypes.TEXT,
     allowNull: false
@@ -41,7 +45,7 @@ Task.init({
   notify_1_day: {
     type: DataTypes.BOOLEAN
   },
-  
+
   created_at: {
     type: DataTypes.DATE
   },

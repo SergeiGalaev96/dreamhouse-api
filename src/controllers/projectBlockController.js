@@ -67,48 +67,113 @@ const searchProjectBlocks = async (req, res) => {
         pb.created_at,
         pb.updated_at,
 
+        /* =========================
+           ОБЪЁМЫ
+        ========================== */
         COALESCE(v.planned_volume,0) AS planned_volume,
         COALESCE(v.done_volume,0) AS done_volume,
 
-        COALESCE(v.actual_budget,0) AS actual_budget,
+        /* =========================
+           БЮДЖЕТ (ФАКТИЧЕСКИЙ 🔥)
+        ========================== */
+        (
+          /* WORK PERFORMED */
+          COALESCE((
+            SELECT SUM(
+              wpi.quantity *
+              wpi.price *
+              CASE
+                WHEN wpi.currency = 1 THEN 1
+                ELSE COALESCE(wpi.currency_rate, 1)
+              END
+            )
+            FROM construction.work_performed wp
+            LEFT JOIN construction.work_performed_items wpi
+              ON wpi.work_performed_id = wp.id
+              AND wpi.deleted = false
+            WHERE wp.block_id = pb.id
+              AND wp.deleted = false
+          ), 0)
 
-        COALESCE(v.planned_volume,0) -
-        COALESCE(v.done_volume,0) AS remaining_volume,
+          +
 
+          /* PURCHASE ORDERS */
+          COALESCE((
+            SELECT SUM(
+              poi.quantity *
+              poi.price *
+              CASE
+                WHEN poi.currency = 1 THEN 1
+                ELSE COALESCE(poi.currency_rate, 1)
+              END
+            )
+            FROM construction.purchase_orders po
+            LEFT JOIN construction.purchase_order_items poi
+              ON poi.purchase_order_id = po.id
+              AND poi.deleted = false
+            WHERE po.block_id = pb.id
+              AND po.deleted = false
+              AND po.status IN (4, 5)
+          ), 0)
+
+        ) AS actual_budget,
+
+        /* =========================
+           ОСТАТОК
+        ========================== */
+        GREATEST(
+          COALESCE(v.planned_volume,0) - COALESCE(v.done_volume,0),
+          0
+        ) AS remaining_volume,
+
+        /* =========================
+           ПРОГРЕСС
+        ========================== */
         CASE
-          WHEN COALESCE(v.planned_volume,0) = 0
-          THEN 0
+          WHEN COALESCE(v.planned_volume,0) = 0 THEN 0
           ELSE ROUND(
             (v.done_volume / v.planned_volume)::numeric * 100
           ,2)::double precision
         END AS progress_percent,
 
+        /* =========================
+           СЧЁТЧИКИ
+        ========================== */
         COALESCE(v.services_count,0) AS services_count,
+        COALESCE(v.materials_count,0) AS materials_count,
         COALESCE(s.subsections_count,0) AS subsections_count
 
       FROM construction.project_blocks pb
 
+      /* =========================
+         ОСНОВНАЯ АГРЕГАЦИЯ (объёмы)
+      ========================== */
       LEFT JOIN (
         SELECT
           me.block_id,
 
-          SUM(mei.quantity_planned) AS planned_volume,
-          SUM(wpi.quantity) AS done_volume,
+          SUM(CASE WHEN mei.item_type = 2 THEN mei.quantity_planned ELSE 0 END) AS planned_volume,
 
-          SUM(wpi.quantity * mei.price) AS actual_budget,
+          SUM(CASE WHEN mei.item_type = 2 THEN COALESCE(wpi_sum.done_quantity,0) ELSE 0 END) AS done_volume,
 
-          COUNT(DISTINCT mei.id) AS services_count
+          COUNT(DISTINCT CASE WHEN mei.item_type = 2 THEN mei.id END) AS services_count,
+          COUNT(DISTINCT CASE WHEN mei.item_type = 1 THEN mei.id END) AS materials_count
 
         FROM construction.material_estimates me
 
         LEFT JOIN construction.material_estimate_items mei
           ON mei.material_estimate_id = me.id
-          AND mei.item_type = 2
           AND mei.deleted = false
 
-        LEFT JOIN construction.work_performed_items wpi
-          ON wpi.material_estimate_item_id = mei.id
-          AND wpi.deleted = false
+        LEFT JOIN (
+          SELECT
+            material_estimate_item_id,
+            SUM(quantity) AS done_quantity
+          FROM construction.work_performed_items
+          WHERE deleted = false
+          GROUP BY material_estimate_item_id
+        ) wpi_sum
+          ON wpi_sum.material_estimate_item_id = mei.id
 
         WHERE me.deleted = false
 
@@ -116,6 +181,9 @@ const searchProjectBlocks = async (req, res) => {
 
       ) v ON v.block_id = pb.id
 
+      /* =========================
+         ПОДРАЗДЕЛЫ
+      ========================== */
       LEFT JOIN (
         SELECT
           bs.block_id,
@@ -190,15 +258,6 @@ const searchProjectBlocks = async (req, res) => {
 
   }
 };
-
-module.exports = {
-  searchProjectBlocks
-};
-
-module.exports = {
-  searchProjectBlocks
-};
-
 
 // 🔹 Получить блок по ID
 const getProjectBlockById = async (req, res) => {

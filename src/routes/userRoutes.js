@@ -182,7 +182,7 @@ router.post('/search', authenticateToken, authorizeRole(1), searchUsers);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/createUser', createUser);
+router.post('/createUser', authenticateToken, authorizeRole(1), createUser);
 
 
 /**
@@ -254,7 +254,7 @@ router.get('/getById/:id', authenticateToken, getUserById);
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, updateUser);
+router.put('/update/:id', authenticateToken, authorizeRole(1), updateUser);
 
 /**
  * @swagger
