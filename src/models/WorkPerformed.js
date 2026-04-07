@@ -10,6 +10,7 @@ WorkPerformed.init({
     autoIncrement: true
   },
   block_id: DataTypes.INTEGER,
+  project_id: DataTypes.INTEGER,
   code: DataTypes.TEXT,
   status: DataTypes.INTEGER,
 

@@ -265,5 +265,4 @@ router.put('/update/:id', authenticateToken, updateWorkPerformed);
  */
 router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteWorkPerformed);
 
-
 module.exports = router;

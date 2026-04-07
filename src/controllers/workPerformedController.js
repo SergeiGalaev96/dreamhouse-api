@@ -29,7 +29,6 @@ const getAllWorkPerformed = async (req, res) => {
   }
 };
 
-
 const searchWorkPerformed = async (req, res) => {
   try {
     const {
@@ -95,7 +94,18 @@ const getWorkPerformedById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const work = await WorkPerformed.findByPk(id);
+    const work = await WorkPerformed.findByPk(id, {
+      include: [
+        {
+          model: WorkPerformedItem,
+          as: 'items',
+          where: { deleted: false },
+          required: false,
+          separate: true,
+          order: [['created_at', 'ASC']]
+        }
+      ]
+    });
 
     if (!work) {
       return res.status(404).json({
@@ -110,6 +120,8 @@ const getWorkPerformedById = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Ошибка получения акта:", error);
+
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при получении акта выполненных работ',
@@ -335,7 +347,6 @@ const deleteWorkPerformed = async (req, res) => {
 
   }
 };
-
 
 module.exports = {
   getAllWorkPerformed,

@@ -3,11 +3,11 @@ const { Op } = require("sequelize");
 
 const getAllPurchaseOrderItemStatuses = async (req, res) => {
   try {
-    const whereClause = {deleted: false};
+    const whereClause = { deleted: false };
 
     const { count, rows } = await PurchaseOrderItemStatus.findAndCountAll({
       where: whereClause,
-      order: [['created_at', 'DESC']]
+      order: [['id', 'DESC']]
     });
 
     res.json({

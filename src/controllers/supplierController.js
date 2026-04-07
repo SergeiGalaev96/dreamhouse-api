@@ -101,7 +101,7 @@ const recommendSuppliers = async (req, res) => {
     if (!currency) {
       return res.status(400).json({
         success: false,
-        message: "currency header обязателен"
+        message: "currency обязателен"
       });
     }
 
@@ -118,29 +118,31 @@ const recommendSuppliers = async (req, res) => {
         include: [
 
           /* ============================================================
-             ЛУЧШАЯ ЦЕНА В НУЖНОЙ ВАЛЮТЕ
+             🔥 АКТУАЛЬНАЯ (ПОСЛЕДНЯЯ) ЦЕНА
           ============================================================ */
           [
             Sequelize.literal(`
               (
-                SELECT MIN(
+                SELECT
                   CASE
-                    WHEN poi.currency = '${currency}'
+                    WHEN poi.currency = ${Number(currency)}
                       THEN poi.price
                     ELSE poi.price * COALESCE(poi.currency_rate, 1)
                   END
-                )
                 FROM construction.purchase_order_items poi
                 WHERE poi.supplier_id = "Supplier".id
-                AND poi.material_id = ${materialId}
-                AND poi.status = 4
+                  AND poi.material_id = ${materialId}
+                  AND poi.status = 4
+                  AND poi.deleted = false
+                ORDER BY poi.created_at DESC
+                LIMIT 1
               )
             `),
             "best_price"
           ],
 
           /* ============================================================
-             РЕЙТИНГ
+             ⭐ РЕЙТИНГ
           ============================================================ */
           [
             Sequelize.literal(`
@@ -168,7 +170,10 @@ const recommendSuppliers = async (req, res) => {
           model: SupplierRating,
           as: "ratings",
           attributes: [],
-          required: false
+          required: false,
+          where: {
+            deleted: false
+          }
         }
       ],
 

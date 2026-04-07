@@ -91,6 +91,8 @@ const teamMemberRoutes = require('./routes/teamMemberRoutes');
 
 const generalStatusRoutes = require('./routes/generalStatusRoutes');
 
+// Отчеты
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 
@@ -260,6 +262,9 @@ app.use('/api/documentStatuses', documentStatusRoutes);
 app.use('/api/documentFiles', documentFileRoutes);
 // Общие статусы
 app.use('/api/generalStatuses', generalStatusRoutes);
+
+// Отчеты 
+app.use('/api/reports', reportRoutes);
 
 
 // Обработка 404
