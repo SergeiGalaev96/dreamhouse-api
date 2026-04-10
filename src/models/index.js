@@ -30,6 +30,10 @@ const CurrencyRate = require('./CurrencyRate');
 
 const WarehouseStock = require('./WarehouseStock');
 const Warehouse = require('./Warehouse');
+const MaterialWriteOff = require('./MaterialWriteOff');
+const MaterialWriteOffItem = require('./MaterialWriteOffItem');
+const MbpWriteOff = require('./MbpWriteOff');
+const MbpWriteOffItem = require('./MbpWriteOffItem');
 
 const Document = require('./Document');
 const DocumentFile = require('./DocumentFile');
@@ -267,6 +271,62 @@ WarehouseStock.belongsTo(Material, {
   as: "material"
 });
 
+/**
+ * ================================
+ * MATERIAL WRITE OFF
+ * ================================
+ */
+
+MaterialWriteOff.hasMany(MaterialWriteOffItem, {
+  foreignKey: 'material_write_off_id',
+  as: 'items'
+});
+
+MaterialWriteOffItem.belongsTo(MaterialWriteOff, {
+  foreignKey: 'material_write_off_id',
+  as: 'write_off'
+});
+
+MaterialWriteOff.belongsTo(WorkPerformed, {
+  foreignKey: 'work_performed_id',
+  as: 'work_performed'
+});
+
+MaterialWriteOff.belongsTo(WorkPerformedItem, {
+  foreignKey: 'work_performed_item_id',
+  as: 'work_performed_item'
+});
+
+MaterialWriteOff.belongsTo(Warehouse, {
+  foreignKey: 'warehouse_id',
+  as: 'warehouse'
+});
+
+MaterialWriteOffItem.belongsTo(Material, {
+  foreignKey: 'material_id',
+  as: 'material'
+});
+
+MbpWriteOff.hasMany(MbpWriteOffItem, {
+  foreignKey: 'mbp_write_off_id',
+  as: 'items'
+});
+
+MbpWriteOffItem.belongsTo(MbpWriteOff, {
+  foreignKey: 'mbp_write_off_id',
+  as: 'write_off'
+});
+
+MbpWriteOff.belongsTo(Warehouse, {
+  foreignKey: 'warehouse_id',
+  as: 'warehouse'
+});
+
+MbpWriteOffItem.belongsTo(Material, {
+  foreignKey: 'material_id',
+  as: 'material'
+});
+
 
 /**
  * ================================
@@ -307,6 +367,10 @@ module.exports = {
   CurrencyRate,
   Warehouse,
   WarehouseStock,
+  MaterialWriteOff,
+  MaterialWriteOffItem,
+  MbpWriteOff,
+  MbpWriteOffItem,
   Document,
   DocumentFile
 };

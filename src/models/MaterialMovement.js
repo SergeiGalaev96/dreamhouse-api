@@ -47,6 +47,14 @@ const MaterialMovement = sequelize.define('MaterialMovement', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  entity_type: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  entity_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   created_at: {
     type: DataTypes.DATE
   },

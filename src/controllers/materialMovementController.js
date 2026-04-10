@@ -4,7 +4,7 @@ const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllMaterialMovements = async (req, res) => {
   try {
-    const whereClause = {deleted: false};
+    const whereClause = { deleted: false };
 
     const { count, rows } = await MaterialMovement.findAndCountAll({
       where: whereClause,
@@ -31,6 +31,7 @@ const searchMaterialMovements = async (req, res) => {
   try {
     const {
       project_id,
+      warehouse_id,
       material_id,
       // name,
       page = 1,
@@ -38,14 +39,20 @@ const searchMaterialMovements = async (req, res) => {
     } = req.body;
 
     const offset = (page - 1) * size;
-    const whereClause = {deleted: false};
+    const whereClause = { deleted: false };
 
 
     // if (name)
     //   whereClause.name = { [Op.iLike]: `%${name}%` };
-    
+
     if (project_id)
       whereClause.project_id = project_id
+
+    if (warehouse_id)
+      whereClause[Op.or] = [
+        { from_warehouse_id: warehouse_id },
+        { to_warehouse_id: warehouse_id }
+      ]
 
     if (material_id)
       whereClause.material_id = material_id
@@ -108,7 +115,7 @@ const getMaterialMovementById = async (req, res) => {
 const createMaterialMovement = async (req, res) => {
   try {
     const materialMovement = await MaterialMovement.create(req.body);
-    
+
     res.status(201).json({
       success: true,
       message: 'Транзакция успешно создана',

@@ -7,6 +7,84 @@ const Task = require('../models/Task');
 const TaskPriority = require('../models/TaskPriority');
 const TaskStatus = require('../models/TaskStatus');
 const User = require('../models/User');
+const { sendPushToUser } = require('../utils/pushNotifications');
+
+const TASK_STATUS_ACQUAINTED = 2;
+const TASK_STATUS_IN_PROGRESS = 3;
+const TASK_STATUS_DONE = 4;
+const TASK_STATUS_CANCELLED = 5;
+
+const getTaskStatusNotificationTitle = (status) => {
+  switch (Number(status)) {
+    case TASK_STATUS_ACQUAINTED:
+      return 'С задачей ознакомлен';
+    case TASK_STATUS_IN_PROGRESS:
+      return 'Задача в работе';
+    case TASK_STATUS_DONE:
+      return 'Задача выполнена';
+    case TASK_STATUS_CANCELLED:
+      return 'Задача отменена';
+    default:
+      return 'Статус задачи изменен';
+  }
+};
+
+const getTaskStatusNotificationTitleSafe = (status) => {
+  switch (Number(status)) {
+    case TASK_STATUS_ACQUAINTED:
+      return '\u0421 \u0437\u0430\u0434\u0430\u0447\u0435\u0439 \u043e\u0437\u043d\u0430\u043a\u043e\u043c\u043b\u0435\u043d';
+    case TASK_STATUS_IN_PROGRESS:
+      return '\u0417\u0430\u0434\u0430\u0447\u0430 \u0432 \u0440\u0430\u0431\u043e\u0442\u0435';
+    case TASK_STATUS_DONE:
+      return '\u0417\u0430\u0434\u0430\u0447\u0430 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0430';
+    case TASK_STATUS_CANCELLED:
+      return '\u0417\u0430\u0434\u0430\u0447\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430';
+    default:
+      return '\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437\u043c\u0435\u043d\u0435\u043d';
+  }
+};
+
+const createNotificationAndEmit = async ({ userId, type, title, message, entityType, entityId }) => {
+  if (!userId) return;
+
+  const notification = await Notification.create({
+    user_id: userId,
+    type,
+    title,
+    message,
+    entity_type: entityType,
+    entity_id: entityId,
+    is_read: false,
+    deleted: false
+  });
+
+  const unreadCount = await Notification.count({
+    where: {
+      user_id: userId,
+      is_read: false,
+      deleted: false
+    }
+  });
+
+  try {
+    const io = getIO();
+    const room = `user_${userId}`;
+    const roomSize = io.sockets.adapter.rooms.get(room)?.size || 0;
+    const notificationPayload = notification.toJSON ? notification.toJSON() : notification;
+
+    console.log(`[notifications] emit ${type} to ${room}; sockets=${roomSize}; notification=${notification.id}`);
+
+    io.to(room).emit('notifications:count', {
+      count: unreadCount
+    });
+    io.to(room).emit('notifications:new', {
+      notification: notificationPayload,
+      count: unreadCount
+    });
+  } catch (socketError) {
+    console.error('notification emit error:', socketError.message);
+  }
+};
 
 const getAllTasks = async (req, res) => {
   try {
@@ -43,6 +121,7 @@ const searchTasks = async (req, res) => {
 
     const {
       search,
+      user_id,
       project_id,
       statuses,
       page = 1,
@@ -52,7 +131,15 @@ const searchTasks = async (req, res) => {
     const limit = Number(size);
     const offset = (Number(page) - 1) * limit;
 
-    const whereClause = {};
+    const baseWhereClause = {
+      deleted: false
+    };
+
+    const baseAndConditions = [];
+    const currentUserId = Number(req.user?.id) || null;
+    const currentUserRoleId = Number(req.user?.role_id) || null;
+    const requestedUserId = user_id != null ? Number(user_id) : null;
+    const isAdmin = currentUserRoleId === 1;
 
     /* =========================
        SEARCH
@@ -62,11 +149,28 @@ const searchTasks = async (req, res) => {
 
       const s = `%${search.trim()}%`;
 
-      whereClause[Op.or] = [
-        { title: { [Op.iLike]: s } },
-        { description: { [Op.iLike]: s } }
-      ];
+      baseAndConditions.push({
+        [Op.or]: [
+          { title: { [Op.iLike]: s } },
+          { description: { [Op.iLike]: s } }
+        ]
+      });
 
+    }
+
+    /* =========================
+       USER
+    ========================= */
+
+    const effectiveUserId = isAdmin ? requestedUserId : currentUserId;
+
+    if (effectiveUserId) {
+      baseAndConditions.push({
+        [Op.or]: [
+          { created_user_id: effectiveUserId },
+          { responsible_user_id: effectiveUserId }
+        ]
+      });
     }
 
     /* =========================
@@ -74,12 +178,20 @@ const searchTasks = async (req, res) => {
     ========================= */
 
     if (project_id) {
-      whereClause.project_id = project_id;
+      baseAndConditions.push({
+        project_id
+      });
     }
 
     /* =========================
        STATUSES
     ========================= */
+
+    const whereClause = {
+      ...baseWhereClause
+    };
+
+    const listAndConditions = [...baseAndConditions];
 
     const statusFilter = Array.isArray(statuses)
       ? statuses
@@ -88,26 +200,66 @@ const searchTasks = async (req, res) => {
         : null;
 
     if (statusFilter) {
-      whereClause.status = {
-        [Op.in]: statusFilter
-      };
+      listAndConditions.push({
+        status: {
+          [Op.in]: statusFilter
+        }
+      });
+    }
+
+    if (listAndConditions.length > 0) {
+      whereClause[Op.and] = listAndConditions;
     }
 
     /* =========================
-       QUERY
+       QUERY DATA
     ========================= */
 
     const { count, rows } = await Task.findAndCountAll({
-
       where: whereClause,
-
       limit,
       offset,
-
       subQuery: false,
-
       order: [["id", "DESC"]]
+    });
 
+    /* =========================
+       QUERY STATS (без пагинации)
+    ========================= */
+
+    const groupedStatusStats = await Task.findAll({
+      where: {
+        deleted: false
+      },
+      attributes: [
+        "status",
+        [Sequelize.fn("COUNT", Sequelize.col("id")), "count"]
+      ],
+      group: ["status"],
+      raw: true
+    });
+
+    const statusCounts = groupedStatusStats.reduce((acc, row) => {
+      acc[Number(row.status)] = Number(row.count || 0);
+      return acc;
+    }, {
+      1: 0,
+      2: 0,
+      3: 0,
+      4: 0,
+      5: 0
+    });
+
+    const overdueCount = await Task.count({
+      where: {
+        deleted: false,
+        deadline: {
+          [Op.lt]: Sequelize.fn("NOW")
+        },
+        status: {
+          [Op.notIn]: [4, 5]
+        }
+      }
     });
 
     const total = Array.isArray(count) ? count.length : count;
@@ -115,6 +267,10 @@ const searchTasks = async (req, res) => {
     res.json({
       success: true,
       data: rows,
+      stats: {
+        statuses: statusCounts,
+        overdueCount
+      },
       pagination: {
         page: Number(page),
         size: limit,
@@ -182,32 +338,14 @@ const createTask = async (req, res) => {
     const taskPriority = await TaskPriority.findByPk(task.priority);
 
     if (task.responsible_user_id) {
-      await Notification.create({
-        user_id: task.responsible_user_id,
+      await createNotificationAndEmit({
+        userId: task.responsible_user_id,
         type: 'task_assigned',
         title: 'Назначена новая задача',
         message: `Вам назначена задача: ${task.title}`,
-        entity_type: 'task',
-        entity_id: task.id,
-        is_read: false
+        entityType: 'task',
+        entityId: task.id
       });
-
-      const unreadCount = await Notification.count({
-        where: {
-          user_id: task.responsible_user_id,
-          is_read: false,
-          deleted: false
-        }
-      });
-
-      try {
-        const io = getIO();
-        io.to(`user_${task.responsible_user_id}`).emit('notifications:count', {
-          count: unreadCount
-        });
-      } catch (socketError) {
-        console.error('notifications:count emit error:', socketError.message);
-      }
     }
 
     if (responsibleUser?.email) {
@@ -216,6 +354,19 @@ const createTask = async (req, res) => {
         task,
         creator_name: creator.first_name + " " + creator.last_name,
         priority: taskPriority?.name
+      });
+    }
+
+    if (task.responsible_user_id) {
+      await sendPushToUser({
+        userId: task.responsible_user_id,
+        title: 'Назначена новая задача',
+        body: task.title,
+        data: {
+          type: 'task_assigned',
+          taskId: task.id,
+          entityType: 'task'
+        }
       });
     }
 
@@ -275,29 +426,65 @@ const updateTask = async (req, res) => {
        Проверяем изменение статуса
     ============================================================ */
 
-    const oldStatus = taskBefore.status;
-    const newStatus = taskAfter.status;
+    const oldStatus = Number(taskBefore.status);
+    const newStatus = Number(taskAfter.status);
 
     if (oldStatus !== newStatus) {
 
-      const creator = await User.findByPk(taskAfter.created_user_id);
-      const responsible = await User.findByPk(taskAfter.responsible_user_id);
+      const creatorId = taskAfter.created_user_id || taskBefore.created_user_id;
+      const responsibleId = taskAfter.responsible_user_id || taskBefore.responsible_user_id;
+      const recipientId =
+        newStatus === TASK_STATUS_CANCELLED
+          ? responsibleId
+          : [TASK_STATUS_ACQUAINTED, TASK_STATUS_IN_PROGRESS].includes(newStatus)
+            ? creatorId
+            : creatorId;
+
+      console.log(`[tasks] status changed task=${taskAfter.id}; ${oldStatus}->${newStatus}; recipient=${recipientId}; creator=${creatorId}; responsible=${responsibleId}`);
+
+      const creator = await User.findByPk(creatorId);
+      const responsible = await User.findByPk(responsibleId);
       const taskPriority = await TaskPriority.findByPk(taskAfter.priority);
       const taskStatus = await TaskStatus.findByPk(taskAfter.status);
-      let toEmail = creator.email;
+      const notificationRecipient = recipientId === responsibleId ? responsible : creator;
 
-      if (newStatus === 5 && responsible?.email) {
-        toEmail = responsible.email;
+      if (notificationRecipient?.email) {
+        await sendTaskStatusChangedEmail({
+          to: notificationRecipient.email,
+          task: taskAfter,
+          creator_name: creator ? `${creator.first_name} ${creator.last_name}` : '',
+          responsible_user_name: responsible ? `${responsible.first_name} ${responsible.last_name}` : '',
+          priority: taskPriority?.name,
+          status: taskStatus?.name
+        });
       }
 
-      await sendTaskStatusChangedEmail({
-        to: toEmail,
-        task: taskAfter,
-        creator_name: `${creator.first_name} ${creator.last_name}`,
-        responsible_user_name: `${responsible.first_name} ${responsible.last_name}`,
-        priority: taskPriority?.name,
-        status: taskStatus?.name
-      });
+      if (recipientId) {
+        const notificationTitle = getTaskStatusNotificationTitleSafe(newStatus);
+        const notificationMessage = `${notificationTitle}: "${taskAfter.title}"`;
+        await createNotificationAndEmit({
+          userId: recipientId,
+          type: 'task_updated',
+          title: 'Статус задачи изменен',
+          message: `Статус задачи "${taskAfter.title}" изменен на "${taskStatus?.name || taskAfter.status}"`,
+          title: notificationTitle,
+          message: notificationMessage,
+          entityType: 'task',
+          entityId: taskAfter.id
+        });
+
+        await sendPushToUser({
+          userId: recipientId,
+          title: notificationTitle,
+          body: taskAfter.title,
+          data: {
+            type: 'task_updated',
+            taskId: String(taskAfter.id),
+            entityType: 'task',
+            status: String(newStatus)
+          }
+        });
+      }
 
     }
 

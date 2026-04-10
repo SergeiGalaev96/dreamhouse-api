@@ -1,12 +1,12 @@
 const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
-const { 
+const {
   getAllMaterialMovements,
   searchMaterialMovements,
   getMaterialMovementById,
   createMaterialMovement,
   updateMaterialMovement,
-  deleteMaterialMovement 
+  deleteMaterialMovement
 } = require('../controllers/materialMovementController');
 
 const router = express.Router();
@@ -52,6 +52,9 @@ router.get('/gets', authenticateToken, getAllMaterialMovements);
  *             type: object
  *             properties:
  *               project_id:
+ *                 type: integer
+ *                 default: 1
+ *               warehouse_id:
  *                 type: integer
  *                 default: 1
  *               material_id:

@@ -1,39 +1,48 @@
-const { Op } = require('sequelize');
-const { sequelize, } = require('../models');
 const Notification = require("../models/Notification");
+const { getIO } = require('../../socket');
+
+const getUnreadCount = (userId) => Notification.count({
+  where: {
+    user_id: userId,
+    is_read: false,
+    deleted: false
+  }
+});
+
+const emitUnreadNotificationsCount = async (userId) => {
+  const count = await getUnreadCount(userId);
+
+  try {
+    const io = getIO();
+    io.to(`user_${userId}`).emit('notifications:count', { count });
+  } catch (socketError) {
+    console.error('notification count emit error:', socketError.message);
+  }
+
+  return count;
+};
 
 const getUnreadNotificationsCount = async (req, res) => {
   try {
-
-    const count = await Notification.count({
-      where: {
-        user_id: req.user.id,
-        is_read: false,
-        deleted: false
-      }
-    });
+    const count = await getUnreadCount(req.user.id);
 
     res.json({
       success: true,
       unread_count: count
     });
-
   } catch (error) {
-
-    console.error('Ошибка получения количества уведомлений:', error);
+    console.error('get unread notifications count error:', error);
 
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера',
+      message: 'Server error',
       error: error.message
     });
-
   }
 };
 
 const searchNotifications = async (req, res) => {
   try {
-
     const {
       is_read,
       type,
@@ -41,7 +50,7 @@ const searchNotifications = async (req, res) => {
       size = 10
     } = req.body;
 
-    const offset = (page - 1) * size;
+    const offset = (Number(page) - 1) * Number(size);
 
     const whereClause = {
       deleted: false,
@@ -59,7 +68,7 @@ const searchNotifications = async (req, res) => {
     const { count, rows } = await Notification.findAndCountAll({
       where: whereClause,
       limit: Number(size),
-      offset: Number(offset),
+      offset,
       order: [['created_at', 'DESC']]
     });
 
@@ -70,28 +79,24 @@ const searchNotifications = async (req, res) => {
         page: Number(page),
         size: Number(size),
         total: count,
-        pages: Math.ceil(count / size),
-        hasNext: page * size < count,
-        hasPrev: page > 1
+        pages: Math.ceil(count / Number(size)),
+        hasNext: Number(page) * Number(size) < count,
+        hasPrev: Number(page) > 1
       }
     });
-
   } catch (error) {
-
-    console.error('Ошибка поиска уведомлений:', error);
+    console.error('search notifications error:', error);
 
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при поиске уведомлений',
+      message: 'Server error',
       error: error.message
     });
-
   }
 };
 
 const markNotificationAsRead = async (req, res) => {
   try {
-
     const { id } = req.params;
 
     const [updated] = await Notification.update(
@@ -107,58 +112,57 @@ const markNotificationAsRead = async (req, res) => {
     if (!updated) {
       return res.status(404).json({
         success: false,
-        message: 'Уведомление не найдено'
+        message: 'Notification not found'
       });
     }
 
+    const unreadCount = await emitUnreadNotificationsCount(req.user.id);
+
     res.json({
       success: true,
-      message: 'Уведомление отмечено как прочитанное'
+      unread_count: unreadCount,
+      message: 'Notification marked as read'
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера',
+      message: 'Server error',
       error: error.message
     });
-
   }
 };
 
 const markAllNotificationsAsRead = async (req, res) => {
   try {
-
     await Notification.update(
       { is_read: true },
       {
         where: {
           user_id: req.user.id,
-          is_read: false
+          is_read: false,
+          deleted: false
         }
       }
     );
 
+    const unreadCount = await emitUnreadNotificationsCount(req.user.id);
+
     res.json({
       success: true,
-      message: 'Все уведомления отмечены как прочитанные'
+      unread_count: unreadCount,
+      message: 'All notifications marked as read'
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера',
+      message: 'Server error',
       error: error.message
     });
-
   }
 };
 
 const deleteNotification = async (req, res) => {
   try {
-
     const { id } = req.params;
 
     const [updated] = await Notification.update(
@@ -174,23 +178,23 @@ const deleteNotification = async (req, res) => {
     if (!updated) {
       return res.status(404).json({
         success: false,
-        message: 'Уведомление не найдено'
+        message: 'Notification not found'
       });
     }
 
+    const unreadCount = await emitUnreadNotificationsCount(req.user.id);
+
     res.json({
       success: true,
-      message: 'Уведомление удалено'
+      unread_count: unreadCount,
+      message: 'Notification deleted'
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера',
+      message: 'Server error',
       error: error.message
     });
-
   }
 };
 

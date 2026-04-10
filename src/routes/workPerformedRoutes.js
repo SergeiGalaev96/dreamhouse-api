@@ -152,6 +152,10 @@ router.get('/getById/:id', authenticateToken, getWorkPerformedById);
  *               performed_person_name:
  *                 type: string
  *                 example: Бригада №2
+ *               advance_payment:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 150000
  *               items:
  *                 type: array
  *                 description: Список выполненных работ
@@ -229,6 +233,19 @@ router.post('/create', authenticateToken, createWorkPerformed);
  *         application/json:
  *           schema:
  *             type: object
+ *             properties:
+ *               advance_payment:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 150000
+ *               signed_by_foreman:
+ *                 type: boolean
+ *               signed_by_planning_engineer:
+ *                 type: boolean
+ *               signed_by_main_engineer:
+ *                 type: boolean
+ *               comment:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Акт успешно обновлен

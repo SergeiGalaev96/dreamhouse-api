@@ -9,6 +9,14 @@ WorkPerformedItem.init({
 		primaryKey: true,
 		autoIncrement: true
 	},
+	work_performed_id: {
+		type: DataTypes.INTEGER,
+		allowNull: false
+	},
+	material_estimate_item_id: {
+		type: DataTypes.INTEGER,
+		allowNull: true
+	},
 	service_type: {
 		type: DataTypes.INTEGER,
 		allowNull: false

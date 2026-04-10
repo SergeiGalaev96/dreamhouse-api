@@ -139,13 +139,17 @@ const getWorkPerformedReport = async (req, res) => {
     );
 
     const total = items.reduce((sum, i) => sum + Number(i.total || 0), 0);
+    const advancePayment = Number(header[0].advance_payment || 0);
+    const remaining = total - advancePayment;
 
     res.json({
       success: true,
       data: {
         header: header[0],
         items,
-        total
+        total,
+        advance_payment: advancePayment,
+        remaining
       }
     });
 

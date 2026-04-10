@@ -2,6 +2,15 @@ const { Op } = require("sequelize");
 const { sequelize, WorkPerformed, WorkPerformedItem } = require('../models');
 const updateWithAudit = require('../utils/updateWithAudit');
 
+const normalizeNullableNumber = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 
 const getAllWorkPerformed = async (req, res) => {
   try {
@@ -140,6 +149,10 @@ const createWorkPerformed = async (req, res) => {
       ...workData
     } = req.body;
 
+    if (Object.prototype.hasOwnProperty.call(workData, "advance_payment")) {
+      workData.advance_payment = normalizeNullableNumber(workData.advance_payment);
+    }
+
     /* ============================================================
        1. СОЗДАЁМ АКТ
     ============================================================ */
@@ -199,6 +212,10 @@ const updateWorkPerformed = async (req, res) => {
       comment,
       ...restBody
     } = req.body;
+
+    if (Object.prototype.hasOwnProperty.call(restBody, "advance_payment")) {
+      restBody.advance_payment = normalizeNullableNumber(restBody.advance_payment);
+    }
 
     /* ============================================================
        Проверяем наличие акта

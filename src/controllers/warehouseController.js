@@ -135,6 +135,20 @@ const getWarehouseById = async (req, res) => {
 
 const createWarehouse = async (req, res) => {
   try {
+    const existingWarehouse = await Warehouse.findOne({
+      where: {
+        project_id: req.body.project_id,
+        deleted: false
+      }
+    });
+
+    if (existingWarehouse) {
+      return res.status(400).json({
+        success: false,
+        message: 'Для проекта уже существует активный склад'
+      });
+    }
+
     const warehouse = await Warehouse.create(req.body);
 
     res.status(201).json({

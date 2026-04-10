@@ -136,6 +136,22 @@ const createMaterialEstimate = async (req, res) => {
   try {
     const { items, ...estimateData } = req.body;
 
+    const existingEstimate = await MaterialEstimate.findOne({
+      where: {
+        block_id: estimateData.block_id,
+        deleted: false
+      },
+      transaction
+    });
+
+    if (existingEstimate) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Для блока уже существует активная смета'
+      });
+    }
+
     /* ===============================
        1️⃣ Создаём саму смету
     =============================== */

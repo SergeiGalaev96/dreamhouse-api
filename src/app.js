@@ -14,6 +14,7 @@ const auditLogRoutes = require('./routes/auditLogRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const userRoleRoutes = require('./routes/userRoleRoutes');
+const pushTokenRoutes = require('./routes/pushTokenRoutes');
 
 // Объекты
 const projectRoutes = require('./routes/projectRoutes');
@@ -64,6 +65,9 @@ const warehouseStockRoutes = require('./routes/warehouseStockRoutes');
 // Транзакции материалов
 const materialMovementRoutes = require('./routes/materialMovementRoutes');
 const materialMovementStatusRoutes = require('./routes/materialMovementStatusRoutes');
+const materialWriteOffStatusRoutes = require('./routes/materialWriteOffStatusRoutes');
+const materialWriteOffRoutes = require('./routes/materialWriteOffRoutes');
+const mbpWriteOffRoutes = require('./routes/mbpWriteOffRoutes');
 // Заявки на закуп
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const purchaseOrderStatusRoutes = require('./routes/purchaseOrderStatusRoutes');
@@ -175,6 +179,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/userRoles', userRoleRoutes);
+app.use('/api/pushTokens', pushTokenRoutes);
 
 // Внутрисистемные уведомления
 app.use('/api/notifications', notificationRoutes);
@@ -247,6 +252,9 @@ app.use('/api/warehouseStocks', warehouseStockRoutes);
 // Транзакции материалов
 app.use('/api/materialMovements', materialMovementRoutes);
 app.use('/api/materialMovementStatuses', materialMovementStatusRoutes);
+app.use('/api/materialWriteOffStatuses', materialWriteOffStatusRoutes);
+app.use('/api/materialWriteOffs', materialWriteOffRoutes);
+app.use('/api/mbpWriteOffs', mbpWriteOffRoutes);
 
 // Контракты
 app.use('/api/contracts', contractRoutes);

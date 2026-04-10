@@ -28,6 +28,7 @@ WorkPerformed.init({
   signed_by_main_engineer_time: DataTypes.DATE,
 
   performed_person_name: DataTypes.TEXT,
+  advance_payment: DataTypes.DECIMAL,
 
   created_at: DataTypes.DATE,
   updated_at: DataTypes.DATE,

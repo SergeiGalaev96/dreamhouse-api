@@ -16,7 +16,7 @@ const Document = sequelize.define('Document', {
     defaultValue: 1
   },
   price: {
-    type: DataTypes.DECIMAL(10,2),
+    type: DataTypes.DECIMAL(10, 2),
     defaultValue: 1
   },
   description: {
@@ -24,11 +24,15 @@ const Document = sequelize.define('Document', {
     allowNull: true
   },
   deadline: {
-    type: DataTypes.TEXT,
+    type: DataTypes.DATE,
     allowNull: true
   },
   responsible_users: {
     type: DataTypes.ARRAY(DataTypes.INTEGER),
+    allowNull: true
+  },
+  location: {
+    type: DataTypes.TEXT,
     allowNull: true
   },
   entity_type: {

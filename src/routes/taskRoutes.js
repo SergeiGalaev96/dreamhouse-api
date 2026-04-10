@@ -58,6 +58,10 @@ router.get('/gets', authenticateToken, getAllTasks);
  *               project_id:
  *                 type: integer
  *                 default: 20
+ *               user_id:
+ *                 type: integer
+ *                 example: 83
+ *                 description: ID пользователя. Для обычного пользователя игнорируется и используется ID из токена. Для admin можно передать, чтобы отфильтровать задачи конкретного пользователя.
  *               statuses:
  *                 oneOf:
  *                   - type: integer
