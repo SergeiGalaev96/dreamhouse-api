@@ -60,9 +60,6 @@ router.get("/gets", authenticateToken, getAllWorkPerformedItems);
  *               material_estimate_item_id:
  *                 type: integer
  *                 example: 3
- *               name:
- *                 type: string
- *                 example: Установка входных дверей
  *               page:
  *                 type: integer
  *                 example: 1
@@ -122,7 +119,6 @@ router.get("/getById/:id", authenticateToken, getWorkPerformedItemById);
  *             type: object
  *             required:
  *               - work_performed_id
- *               - name
  *               - unit_of_measure
  *               - quantity
  *               - price
@@ -133,9 +129,6 @@ router.get("/getById/:id", authenticateToken, getWorkPerformedItemById);
  *               material_estimate_item_id:
  *                 type: integer
  *                 example: 5
- *               name:
- *                 type: string
- *                 example: Установка входных дверей
  *               unit_of_measure:
  *                 type: integer
  *                 example: 3
@@ -184,8 +177,6 @@ router.post("/create", authenticateToken, createWorkPerformedItem);
  *           schema:
  *             type: object
  *             properties:
- *               name:
- *                 type: string
  *               unit_of_measure:
  *                 type: integer
  *               quantity:

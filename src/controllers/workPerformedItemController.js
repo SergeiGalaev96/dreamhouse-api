@@ -35,7 +35,6 @@ const searchWorkPerformedItems = async (req, res) => {
     const {
       work_performed_id,
       material_estimate_item_id,
-      name,
       page = 1,
       size = 10
     } = req.body;
@@ -43,8 +42,6 @@ const searchWorkPerformedItems = async (req, res) => {
     const offset = (page - 1) * size;
     const whereClause = { deleted: false };
 
-    if (name)
-      whereClause.name = { [Op.iLike]: `%${name}%` };
 
     if (work_performed_id)
       whereClause.work_performed_id = work_performed_id;

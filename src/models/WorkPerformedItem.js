@@ -25,11 +25,6 @@ WorkPerformedItem.init({
 		type: DataTypes.INTEGER,
 		allowNull: false
 	},
-
-	name: {
-		type: DataTypes.TEXT,
-		allowNull: false
-	},
 	stage_id: {
 		type: DataTypes.INTEGER
 	},

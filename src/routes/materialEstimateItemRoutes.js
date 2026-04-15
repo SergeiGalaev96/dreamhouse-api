@@ -222,7 +222,7 @@ router.get('/getById/:id', authenticateToken, getMaterialEstimateItemById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, createMaterialEstimateItems);
+router.post('/create', authenticateToken, authorizeRole(1, 10, 11), createMaterialEstimateItems);
 
 /**
  * @swagger
@@ -253,7 +253,7 @@ router.post('/create', authenticateToken, createMaterialEstimateItems);
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, updateMaterialEstimateItem);
+router.put('/update/:id', authenticateToken, authorizeRole(1, 10, 11), updateMaterialEstimateItem);
 
 /**
  * @swagger
@@ -278,6 +278,6 @@ router.put('/update/:id', authenticateToken, updateMaterialEstimateItem);
  *       500:
  *         description: Ошибка сервера
  */
-router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteMaterialEstimateItem);
+router.delete('/delete/:id', authenticateToken, authorizeRole(1, 10, 11), deleteMaterialEstimateItem);
 
 module.exports = router;

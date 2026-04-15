@@ -184,7 +184,7 @@ router.get('/getById/:id', authenticateToken, getMaterialEstimateById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, createMaterialEstimate);
+router.post('/create', authenticateToken, authorizeRole(1, 10, 11), createMaterialEstimate);
 
 /**
  * @swagger
@@ -236,7 +236,7 @@ router.post('/create', authenticateToken, createMaterialEstimate);
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, updateMaterialEstimate);
+router.put('/update/:id', authenticateToken, authorizeRole(1, 10, 11), updateMaterialEstimate);
 
 
 /**
