@@ -253,7 +253,10 @@ const createPurchaseOrder = async (req, res) => {
        1. Создаём заказ на закупку
     ============================================================ */
     const purchaseOrder = await PurchaseOrder.create(
-      orderData,
+      {
+        status: orderData.status ?? 1,
+        ...orderData
+      },
       { transaction }
     );
 
@@ -262,6 +265,7 @@ const createPurchaseOrder = async (req, res) => {
     ============================================================ */
     const orderItems = items.map(item => ({
       ...item,
+      status: item.status ?? 1,
       purchase_order_id: purchaseOrder.id
     }));
 

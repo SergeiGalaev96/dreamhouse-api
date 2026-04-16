@@ -46,7 +46,8 @@ PurchaseOrderItem.init({
   },
   status: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: true,
+    defaultValue: 1
   },
   delivered_quantity: {
     type: DataTypes.DECIMAL,

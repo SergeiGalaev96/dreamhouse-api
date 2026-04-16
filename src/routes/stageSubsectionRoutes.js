@@ -143,7 +143,7 @@ router.get('/getById/:id', authenticateToken, getStageSubsectionById);
 router.post(
   '/create',
   authenticateToken,
-  authorizeRole(1, 2, 3),
+  authorizeRole(1, 10, 11),
   createStageSubsection
 );
 
@@ -191,7 +191,7 @@ router.post(
 router.put(
   '/update/:id',
   authenticateToken,
-  authorizeRole(1, 2, 3),
+  authorizeRole(1, 10, 11),
   updateStageSubsection
 );
 
@@ -224,7 +224,7 @@ router.put(
 router.delete(
   '/delete/:id',
   authenticateToken,
-  authorizeRole(1, 2, 3),
+  authorizeRole(1, 10, 11),
   deleteStageSubsection
 );
 

@@ -115,7 +115,6 @@ const getWorkPerformedContext = async (workPerformedItemId, transaction = null) 
         wpi.id,
         wpi.work_performed_id,
         wpi.material_estimate_item_id,
-        wpi.name,
         wpi.service_id,
         wpi.service_type,
         wpi.stage_id,
@@ -360,7 +359,7 @@ const searchMaterialWriteOffs = async (req, res) => {
         {
           model: WorkPerformedItem,
           as: 'work_performed_item',
-          attributes: ['id', 'name', 'service_id', 'stage_id', 'subsection_id', 'quantity']
+          attributes: ['id', 'service_id', 'stage_id', 'subsection_id', 'quantity']
         }
       ],
       limit: Number(size),

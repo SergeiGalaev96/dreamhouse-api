@@ -131,7 +131,7 @@ router.get('/getById/:id', authenticateToken, getBlockStageById);
  *       201:
  *         description: Этап успешно создан
  */
-router.post('/create', authenticateToken, createBlockStage);
+router.post('/create', authenticateToken, authorizeRole(1, 10, 11), createBlockStage);
 
 
 /**
@@ -170,6 +170,7 @@ router.post('/create', authenticateToken, createBlockStage);
 router.put(
   '/update/:id',
   authenticateToken,
+  authorizeRole(1, 10, 11),
   updateBlockStage
 );
 
@@ -193,7 +194,7 @@ router.put(
 router.delete(
   '/delete/:id',
   authenticateToken,
-  authorizeRole(1, 2, 3),
+  authorizeRole(1, 10, 11),
   deleteBlockStage
 );
 

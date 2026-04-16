@@ -93,6 +93,7 @@ const searchProjectBlocks = async (req, res) => {
               AND wpi.deleted = false
             WHERE wp.block_id = pb.id
               AND wp.deleted = false
+              AND wp.status = 2
           ), 0)
 
           +
@@ -167,11 +168,15 @@ const searchProjectBlocks = async (req, res) => {
 
         LEFT JOIN (
           SELECT
-            material_estimate_item_id,
-            SUM(quantity) AS done_quantity
-          FROM construction.work_performed_items
-          WHERE deleted = false
-          GROUP BY material_estimate_item_id
+            wpi.material_estimate_item_id,
+            SUM(wpi.quantity) AS done_quantity
+          FROM construction.work_performed_items wpi
+          JOIN construction.work_performed wp
+            ON wp.id = wpi.work_performed_id
+            AND wp.deleted = false
+            AND wp.status = 2
+          WHERE wpi.deleted = false
+          GROUP BY wpi.material_estimate_item_id
         ) wpi_sum
           ON wpi_sum.material_estimate_item_id = mei.id
 

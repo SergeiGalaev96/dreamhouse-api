@@ -88,10 +88,16 @@ const searchProjects = async (req, res) => {
                   AND mei.item_type = 2
                   AND mei.deleted = false
                 LEFT JOIN (
-                  SELECT material_estimate_item_id, SUM(quantity) AS done_quantity
-                  FROM construction.work_performed_items
-                  WHERE deleted = false
-                  GROUP BY material_estimate_item_id
+                  SELECT
+                    wpi.material_estimate_item_id,
+                    SUM(wpi.quantity) AS done_quantity
+                  FROM construction.work_performed_items wpi
+                  JOIN construction.work_performed wp
+                    ON wp.id = wpi.work_performed_id
+                    AND wp.deleted = false
+                    AND wp.status = 2
+                  WHERE wpi.deleted = false
+                  GROUP BY wpi.material_estimate_item_id
                 ) wpi_sum
                   ON wpi_sum.material_estimate_item_id = mei.id
                 WHERE pb.project_id = "Project".id
@@ -116,7 +122,9 @@ const searchProjects = async (req, res) => {
                 )
                 FROM construction.project_blocks pb
                 LEFT JOIN construction.work_performed wp
-                  ON wp.block_id = pb.id AND wp.deleted = false
+                  ON wp.block_id = pb.id
+                  AND wp.deleted = false
+                  AND wp.status = 2
                 LEFT JOIN construction.work_performed_items wpi
                   ON wpi.work_performed_id = wp.id AND wpi.deleted = false
                 WHERE pb.project_id = "Project".id
@@ -204,10 +212,16 @@ const getProjectById = async (req, res) => {
                   AND mei.item_type = 2
                   AND mei.deleted = false
                 LEFT JOIN (
-                  SELECT material_estimate_item_id, SUM(quantity) AS done_quantity
-                  FROM construction.work_performed_items
-                  WHERE deleted = false
-                  GROUP BY material_estimate_item_id
+                  SELECT
+                    wpi.material_estimate_item_id,
+                    SUM(wpi.quantity) AS done_quantity
+                  FROM construction.work_performed_items wpi
+                  JOIN construction.work_performed wp
+                    ON wp.id = wpi.work_performed_id
+                    AND wp.deleted = false
+                    AND wp.status = 2
+                  WHERE wpi.deleted = false
+                  GROUP BY wpi.material_estimate_item_id
                 ) wpi_sum
                   ON wpi_sum.material_estimate_item_id = mei.id
                 WHERE pb.project_id = "Project".id
@@ -229,7 +243,9 @@ const getProjectById = async (req, res) => {
                 )
                 FROM construction.project_blocks pb
                 LEFT JOIN construction.work_performed wp
-                  ON wp.block_id = pb.id AND wp.deleted = false
+                  ON wp.block_id = pb.id
+                  AND wp.deleted = false
+                  AND wp.status = 2
                 LEFT JOIN construction.work_performed_items wpi
                   ON wpi.work_performed_id = wp.id AND wpi.deleted = false
                 WHERE pb.project_id = "Project".id

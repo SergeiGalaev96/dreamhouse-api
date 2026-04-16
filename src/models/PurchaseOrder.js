@@ -14,7 +14,8 @@ PurchaseOrder.init({
   },
   status: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: true,
+    defaultValue: 1
   },
   created_user_id: {
     type: DataTypes.INTEGER,
