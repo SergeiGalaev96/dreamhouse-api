@@ -384,9 +384,7 @@ const updateMaterialRequest = async (req, res) => {
         ...(isFullyApproved ? { status: 2 } : {})
       },
       entityType: 'material_request',
-      action: isFullyApproved
-        ? 'material_request_approved'
-        : 'material_request_updated',
+      action: 'material_request_updated',
       userId: req.user.id,
       comment,
       transaction

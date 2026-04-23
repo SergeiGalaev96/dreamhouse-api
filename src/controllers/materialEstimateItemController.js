@@ -285,7 +285,7 @@ const createMaterialEstimateItems = async (req, res) => {
           id: existing.id,
           data: { quantity_planned: newQuantity },
           entityType: 'material_estimate_item',
-          action: 'quantity_merged',
+          action: 'material_estimate_item_updated',
           userId: req.user.id,
           comment: `Добавлено ${item.quantity_planned}`,
           transaction

@@ -1,9 +1,9 @@
 const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-class MbpWriteOff extends Model { }
+class MaterialProcessingWriteOff extends Model {}
 
-MbpWriteOff.init({
+MaterialProcessingWriteOff.init({
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -53,25 +53,25 @@ MbpWriteOff.init({
     type: DataTypes.DATE,
     allowNull: true
   },
-  main_engineer_user_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
   signed_by_main_engineer: {
     type: DataTypes.BOOLEAN,
     allowNull: false
+  },
+  main_engineer_user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
   signed_by_main_engineer_time: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  general_director_user_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
   signed_by_general_director: {
     type: DataTypes.BOOLEAN,
     allowNull: false
+  },
+  general_director_user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
   signed_by_general_director_time: {
     type: DataTypes.DATE,
@@ -93,8 +93,8 @@ MbpWriteOff.init({
 }, {
   sequelize,
   schema: 'construction',
-  tableName: 'mbp_write_offs',
+  tableName: 'material_processing_write_offs',
   timestamps: false
 });
 
-module.exports = MbpWriteOff;
+module.exports = MaterialProcessingWriteOff;

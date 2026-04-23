@@ -124,7 +124,7 @@ router.get('/getById/:id', authenticateToken, getMaterialTypeById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, authorizeRole(1, 2, 3), createMaterialType);
+router.post('/create', authenticateToken, authorizeRole(1, 10, 11, 4), createMaterialType);
 
 /**
  * @swagger
@@ -160,7 +160,7 @@ router.post('/create', authenticateToken, authorizeRole(1, 2, 3), createMaterial
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, authorizeRole(1, 2, 3), updateMaterialType);
+router.put('/update/:id', authenticateToken, authorizeRole(1, 10, 11, 4), updateMaterialType);
 
 /**
  * @swagger
@@ -187,6 +187,6 @@ router.put('/update/:id', authenticateToken, authorizeRole(1, 2, 3), updateMater
  *       500:
  *         description: Ошибка сервера
  */
-router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteMaterialType);
+router.delete('/delete/:id', authenticateToken, authorizeRole(1, 10, 11, 4), deleteMaterialType);
 
 module.exports = router;

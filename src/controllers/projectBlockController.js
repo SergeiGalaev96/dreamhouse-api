@@ -300,8 +300,31 @@ const getProjectBlockById = async (req, res) => {
 
 // 🔹 Создание блока
 const createProjectBlock = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const block = await ProjectBlock.create(req.body);
+    const block = await ProjectBlock.create(
+      {
+        ...req.body,
+        planned_budget: Number(req.body?.planned_budget || 0),
+        total_area: Number(req.body?.total_area || 0),
+        sale_area: Number(req.body?.sale_area || 0),
+        deleted: false
+      },
+      { transaction }
+    );
+
+    await MaterialEstimate.create(
+      {
+        block_id: block.id,
+        status: 1,
+        created_user_id: req.user.id,
+        name: `Смета ${block.name}`,
+        deleted: false
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
 
     res.status(201).json({
       success: true,
@@ -310,6 +333,7 @@ const createProjectBlock = async (req, res) => {
     });
 
   } catch (error) {
+    await transaction.rollback();
     res.status(500).json({
       success: false,
       message: "Ошибка сервера при создании блока",

@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { sequelize, WorkPerformed, WorkPerformedItem } = require('../models');
+const Document = require('../models/Document');
 const updateWithAudit = require('../utils/updateWithAudit');
 
 const normalizeNullableNumber = (value) => {
@@ -159,6 +160,28 @@ const createWorkPerformed = async (req, res) => {
 
     const work = await WorkPerformed.create(workData, { transaction });
 
+    const existingDocument = await Document.findOne({
+      where: {
+        entity_type: "workPerformed",
+        entity_id: work.id,
+        deleted: false
+      },
+      transaction
+    });
+
+    if (existingDocument) {
+      throw new Error("Документ для этого АВР уже существует");
+    }
+
+    await Document.create({
+      entity_type: "workPerformed",
+      entity_id: work.id,
+      name: `Файлы Акта №${work.id}`,
+      status: 3,
+      uploaded_by: req.user.id,
+      deleted: false
+    }, { transaction });
+
     /* ============================================================
        2. СОЗДАЁМ ITEMS
     ============================================================ */
@@ -295,9 +318,7 @@ const updateWorkPerformed = async (req, res) => {
         ...(isFullySigned ? { status: 2 } : {})
       },
       entityType: 'work_performed',
-      action: isFullySigned
-        ? 'work_performed_signed'
-        : 'work_performed_updated',
+      action: 'work_performed_updated',
       userId: req.user.id,
       comment
     });

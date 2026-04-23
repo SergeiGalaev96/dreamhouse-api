@@ -29,10 +29,6 @@ MaterialWriteOff.init({
     type: DataTypes.INTEGER,
     allowNull: false
   },
-  write_off_date: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
-  },
   status: {
     type: DataTypes.INTEGER,
     allowNull: false

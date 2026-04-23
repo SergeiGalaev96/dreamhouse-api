@@ -30,10 +30,17 @@ const CurrencyRate = require('./CurrencyRate');
 
 const WarehouseStock = require('./WarehouseStock');
 const Warehouse = require('./Warehouse');
+const MaterialMovement = require('./MaterialMovement');
+const WarehouseTransfer = require('./WarehouseTransfer');
+const WarehouseTransferItem = require('./WarehouseTransferItem');
+const WarehouseTransferStatus = require('./WarehouseTransferStatus');
 const MaterialWriteOff = require('./MaterialWriteOff');
 const MaterialWriteOffItem = require('./MaterialWriteOffItem');
 const MbpWriteOff = require('./MbpWriteOff');
 const MbpWriteOffItem = require('./MbpWriteOffItem');
+const MaterialProcessingWriteOff = require('./MaterialProcessingWriteOff');
+const MaterialProcessingWriteOffItem = require('./MaterialProcessingWriteOffItem');
+const ReportDefinition = require('./ReportDefinition');
 
 const Document = require('./Document');
 const DocumentFile = require('./DocumentFile');
@@ -271,6 +278,41 @@ WarehouseStock.belongsTo(Material, {
   as: "material"
 });
 
+Warehouse.hasMany(WarehouseTransfer, {
+  foreignKey: 'from_warehouse_id',
+  as: 'outgoing_transfers'
+});
+
+Warehouse.hasMany(WarehouseTransfer, {
+  foreignKey: 'to_warehouse_id',
+  as: 'incoming_transfers'
+});
+
+WarehouseTransfer.belongsTo(Warehouse, {
+  foreignKey: 'from_warehouse_id',
+  as: 'from_warehouse'
+});
+
+WarehouseTransfer.belongsTo(Warehouse, {
+  foreignKey: 'to_warehouse_id',
+  as: 'to_warehouse'
+});
+
+WarehouseTransfer.hasMany(WarehouseTransferItem, {
+  foreignKey: 'warehouse_transfer_id',
+  as: 'items'
+});
+
+WarehouseTransferItem.belongsTo(WarehouseTransfer, {
+  foreignKey: 'warehouse_transfer_id',
+  as: 'transfer'
+});
+
+WarehouseTransferItem.belongsTo(Material, {
+  foreignKey: 'material_id',
+  as: 'material'
+});
+
 /**
  * ================================
  * MATERIAL WRITE OFF
@@ -327,6 +369,26 @@ MbpWriteOffItem.belongsTo(Material, {
   as: 'material'
 });
 
+MaterialProcessingWriteOff.hasMany(MaterialProcessingWriteOffItem, {
+  foreignKey: 'processing_write_off_id',
+  as: 'items'
+});
+
+MaterialProcessingWriteOffItem.belongsTo(MaterialProcessingWriteOff, {
+  foreignKey: 'processing_write_off_id',
+  as: 'write_off'
+});
+
+MaterialProcessingWriteOff.belongsTo(Warehouse, {
+  foreignKey: 'warehouse_id',
+  as: 'warehouse'
+});
+
+MaterialProcessingWriteOffItem.belongsTo(Material, {
+  foreignKey: 'material_id',
+  as: 'material'
+});
+
 
 /**
  * ================================
@@ -367,10 +429,17 @@ module.exports = {
   CurrencyRate,
   Warehouse,
   WarehouseStock,
+  MaterialMovement,
+  WarehouseTransfer,
+  WarehouseTransferItem,
+  WarehouseTransferStatus,
   MaterialWriteOff,
   MaterialWriteOffItem,
   MbpWriteOff,
   MbpWriteOffItem,
+  MaterialProcessingWriteOff,
+  MaterialProcessingWriteOffItem,
+  ReportDefinition,
   Document,
   DocumentFile
 };

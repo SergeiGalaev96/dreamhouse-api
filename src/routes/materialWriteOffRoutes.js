@@ -125,9 +125,6 @@ router.get('/getById/:id', authenticateToken, getMaterialWriteOffById);
  *                 type: integer
  *               work_performed_item_id:
  *                 type: integer
- *               write_off_date:
- *                 type: string
- *                 format: date
  *               note:
  *                 type: string
  *               items:

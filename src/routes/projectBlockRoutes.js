@@ -136,7 +136,7 @@ router.get('/getById/:id', authenticateToken, getProjectBlockById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, createProjectBlock);
+router.post('/create', authenticateToken, authorizeRole(1, 10), createProjectBlock);
 
 
 /**
@@ -178,7 +178,7 @@ router.post('/create', authenticateToken, createProjectBlock);
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, updateProjectBlock);
+router.put('/update/:id', authenticateToken, authorizeRole(1, 10), updateProjectBlock);
 
 
 /**
@@ -206,6 +206,6 @@ router.put('/update/:id', authenticateToken, updateProjectBlock);
  *       500:
  *         description: Ошибка сервера
  */
-router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteProjectBlock);
+router.delete('/delete/:id', authenticateToken, authorizeRole(1, 10), deleteProjectBlock);
 
 module.exports = router;

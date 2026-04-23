@@ -1,13 +1,13 @@
 const express = require('express');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
 const { validateProject } = require('../middleware/validation');
-const { 
+const {
   getAllProjects,
   searchProjects,
-  getProjectById, 
-  createProject, 
-  updateProject, 
-  deleteProject 
+  getProjectById,
+  createProject,
+  updateProject,
+  deleteProject
 } = require('../controllers/projectController');
 
 const router = express.Router();
@@ -131,9 +131,9 @@ router.get('/getById/:id', authenticateToken, getProjectById);
  *               address:
  *                 type: string
  *                 description: Адрес проекта
- *               customer_id:
- *                 type: integer
- *                 description: ID заказчика
+ *               customer_name:
+ *                 type: string
+ *                 description: Заказчик
  *               start_date:
  *                 type: string
  *                 format: date
@@ -169,7 +169,7 @@ router.get('/getById/:id', authenticateToken, getProjectById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, authorizeRole(1, 2, 3), createProject);
+router.post('/create', authenticateToken, authorizeRole(1, 10), createProject);
 
 /**
  * @swagger
@@ -201,8 +201,8 @@ router.post('/create', authenticateToken, authorizeRole(1, 2, 3), createProject)
  *                 type: integer
  *               address:
  *                 type: string
- *               customer_id:
- *                 type: integer
+ *               customer_name:
+ *                 type: string
  *               start_date:
  *                 type: string
  *                 format: date
@@ -231,7 +231,7 @@ router.post('/create', authenticateToken, authorizeRole(1, 2, 3), createProject)
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, authorizeRole(1, 2, 3), updateProject);
+router.put('/update/:id', authenticateToken, authorizeRole(1, 10), updateProject);
 
 /**
  * @swagger
@@ -258,6 +258,6 @@ router.put('/update/:id', authenticateToken, authorizeRole(1, 2, 3), updateProje
  *       500:
  *         description: Ошибка сервера
  */
-router.delete('/delete/:id', authenticateToken, authorizeRole(1, 2, 3), deleteProject);
+router.delete('/delete/:id', authenticateToken, authorizeRole(1, 10), deleteProject);
 
 module.exports = router;

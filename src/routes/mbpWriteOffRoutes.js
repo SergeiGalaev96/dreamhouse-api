@@ -4,6 +4,7 @@ const {
   searchMbpWriteOffs,
   getMbpWriteOffById,
   createMbpWriteOff,
+  updateMbpWriteOff,
   signMbpWriteOff,
   deleteMbpWriteOff
 } = require('../controllers/mbpWriteOffController');
@@ -25,6 +26,35 @@ const router = express.Router();
  *     tags: [MbpWriteOffs]
  *     security:
  *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               project_id:
+ *                 type: integer
+ *               warehouse_id:
+ *                 type: integer
+ *               status:
+ *                 type: integer
+ *                 description: 1 - создан, 2 - на подписании, 3 - проведен, 4 - отменен
+ *               date_from:
+ *                 type: string
+ *                 format: date
+ *               date_to:
+ *                 type: string
+ *                 format: date
+ *               page:
+ *                 type: integer
+ *                 example: 1
+ *               size:
+ *                 type: integer
+ *                 example: 10
+ *     responses:
+ *       200:
+ *         description: Результат поиска
  */
 router.post('/search', authenticateToken, searchMbpWriteOffs);
 
@@ -42,6 +72,12 @@ router.post('/search', authenticateToken, searchMbpWriteOffs);
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID списания МБП
+ *     responses:
+ *       200:
+ *         description: Списание МБП найдено
+ *       404:
+ *         description: Списание МБП не найдено
  */
 router.get('/getById/:id', authenticateToken, getMbpWriteOffById);
 
@@ -61,18 +97,13 @@ router.get('/getById/:id', authenticateToken, getMbpWriteOffById);
  *             type: object
  *             required:
  *               - warehouse_id
- *               - block_id
  *               - items
  *             properties:
  *               warehouse_id:
  *                 type: integer
- *               block_id:
- *                 type: integer
- *               write_off_date:
- *                 type: string
- *                 format: date
  *               note:
  *                 type: string
+ *                 description: Общий комментарий к списанию
  *               items:
  *                 type: array
  *                 items:
@@ -90,8 +121,62 @@ router.get('/getById/:id', authenticateToken, getMbpWriteOffById);
  *                       type: number
  *                     note:
  *                       type: string
+ *                       description: Комментарий по позиции
+ *     responses:
+ *       201:
+ *         description: Списание МБП создано
  */
 router.post('/create', authenticateToken, createMbpWriteOff);
+
+/**
+ * @swagger
+ * /api/mbpWriteOffs/update/{id}:
+ *   put:
+ *     summary: Обновить списание МБП
+ *     tags: [MbpWriteOffs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID списания МБП
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               note:
+ *                 type: string
+ *               comment:
+ *                 type: string
+ *                 description: Комментарий для аудита
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - material_id
+ *                     - unit_of_measure
+ *                     - quantity
+ *                   properties:
+ *                     material_id:
+ *                       type: integer
+ *                     unit_of_measure:
+ *                       type: integer
+ *                     quantity:
+ *                       type: number
+ *                     note:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Списание МБП обновлено
+ */
+router.put('/update/:id', authenticateToken, updateMbpWriteOff);
 
 /**
  * @swagger
@@ -107,6 +192,7 @@ router.post('/create', authenticateToken, createMbpWriteOff);
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID списания МБП
  *     requestBody:
  *       required: true
  *       content:
@@ -121,6 +207,9 @@ router.post('/create', authenticateToken, createMbpWriteOff);
  *                 enum: [foreman, planning_engineer, main_engineer, general_director]
  *               comment:
  *                 type: string
+ *     responses:
+ *       200:
+ *         description: Списание МБП подписано
  */
 router.post('/sign/:id', authenticateToken, signMbpWriteOff);
 
@@ -138,6 +227,20 @@ router.post('/sign/:id', authenticateToken, signMbpWriteOff);
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID списания МБП
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               comment:
+ *                 type: string
+ *                 description: Комментарий к удалению
+ *     responses:
+ *       200:
+ *         description: Списание МБП удалено
  */
 router.delete('/delete/:id', authenticateToken, deleteMbpWriteOff);
 

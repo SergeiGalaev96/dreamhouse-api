@@ -151,8 +151,27 @@ const createDocument = async (req, res) => {
     const documentData = {
       ...req.body,
       entity_id: Number(entity_id),
-      uploaded_by: req.user.id
+      uploaded_by: req.user.id,
+      deleted: false
     };
+
+    if (entity_type === "workPerformed") {
+      const existingDocument = await Document.findOne({
+        where: {
+          entity_type,
+          entity_id: Number(entity_id),
+          deleted: false
+        }
+      });
+
+      if (existingDocument) {
+        return res.status(409).json({
+          success: false,
+          message: "Документ для этого АВР уже существует",
+          data: existingDocument
+        });
+      }
+    }
 
     const document = await Document.create(documentData);
 

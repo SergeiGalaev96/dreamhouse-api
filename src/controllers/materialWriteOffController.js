@@ -12,6 +12,7 @@ const {
 const MaterialMovement = require('../models/MaterialMovement');
 const UserRole = require('../models/UserRole');
 const updateWithAudit = require('../utils/updateWithAudit');
+const { localTimestampLiteral } = require('../utils/dateTime');
 
 const WRITE_OFF_STATUS = {
   CREATED: 1,
@@ -23,19 +24,23 @@ const WRITE_OFF_STATUS = {
 const SIGN_STAGE_MAP = {
   foreman: {
     signField: 'signed_by_foreman',
-    timeField: 'signed_by_foreman_time'
+    timeField: 'signed_by_foreman_time',
+    userField: 'foreman_user_id'
   },
   planning_engineer: {
     signField: 'signed_by_planning_engineer',
-    timeField: 'signed_by_planning_engineer_time'
+    timeField: 'signed_by_planning_engineer_time',
+    userField: 'planning_engineer_user_id'
   },
   main_engineer: {
     signField: 'signed_by_main_engineer',
-    timeField: 'signed_by_main_engineer_time'
+    timeField: 'signed_by_main_engineer_time',
+    userField: 'main_engineer_user_id'
   },
   general_director: {
     signField: 'signed_by_general_director',
-    timeField: 'signed_by_general_director_time'
+    timeField: 'signed_by_general_director_time',
+    userField: 'general_director_user_id'
   }
 };
 
@@ -63,13 +68,11 @@ const toPositiveNumber = (value) => {
   return parsed !== null && parsed > 0 ? parsed : null;
 };
 
-const normalizeDate = (value) => {
-  if (!value) return new Date().toISOString().slice(0, 10);
-  if (typeof value === 'string') return value.slice(0, 10);
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
+const safeRollback = async (transaction) => {
+  if (!transaction || transaction.finished) {
+    return;
+  }
+  await transaction.rollback();
 };
 
 const buildPagination = (page, size, total) => ({
@@ -171,7 +174,7 @@ const getWriteOffByIdInternal = async (id) =>
       {
         model: WorkPerformedItem,
         as: 'work_performed_item',
-        attributes: ['id', 'name', 'service_id', 'service_type', 'stage_id', 'subsection_id', 'quantity', 'unit_of_measure']
+        attributes: ['id', 'service_id', 'service_type', 'stage_id', 'subsection_id', 'quantity', 'unit_of_measure']
       }
     ]
   });
@@ -200,6 +203,35 @@ const allSigned = (writeOff) =>
   writeOff.signed_by_planning_engineer === true &&
   writeOff.signed_by_main_engineer === true &&
   writeOff.signed_by_general_director === true;
+
+const validateWarehouseStockAvailability = async ({ warehouseId, items, transaction }) => {
+  const materialIds = items.map((item) => item.material_id);
+  const stocks = await WarehouseStock.findAll({
+    where: {
+      warehouse_id: warehouseId,
+      material_id: materialIds,
+      ...ACTIVE_WHERE
+    },
+    transaction
+  });
+
+  const stockMap = new Map(stocks.map((stock) => [Number(stock.material_id), stock]));
+
+  for (const item of items) {
+    const stock = stockMap.get(Number(item.material_id));
+    const requestedQuantity = Number(item.quantity);
+    const availableQuantity = stock ? Number(stock.quantity) : 0;
+
+    if (!stock || availableQuantity < requestedQuantity) {
+      return {
+        ok: false,
+        message: `Недостаточно остатка по материалу id=${item.material_id}. Доступно: ${availableQuantity}, запрошено: ${requestedQuantity}`
+      };
+    }
+  }
+
+  return { ok: true };
+};
 
 const finalizeMaterialWriteOff = async ({ writeOff, userId, comment = null, transaction }) => {
   const items = await MaterialWriteOffItem.findAll({
@@ -239,6 +271,8 @@ const finalizeMaterialWriteOff = async ({ writeOff, userId, comment = null, tran
     }
   }
 
+  const postedAt = localTimestampLiteral();
+
   for (const item of items) {
     const stock = stockMap.get(Number(item.material_id));
     const quantity = Number(item.quantity);
@@ -247,7 +281,7 @@ const finalizeMaterialWriteOff = async ({ writeOff, userId, comment = null, tran
 
     const movement = await MaterialMovement.create({
       project_id: writeOff.project_id,
-      date: new Date(),
+      date: postedAt,
       from_warehouse_id: writeOff.warehouse_id,
       to_warehouse_id: null,
       user_id: userId,
@@ -266,9 +300,12 @@ const finalizeMaterialWriteOff = async ({ writeOff, userId, comment = null, tran
   await updateWithAudit({
     model: MaterialWriteOff,
     id: writeOff.id,
-    data: { status: WRITE_OFF_STATUS.POSTED },
+    data: {
+      status: WRITE_OFF_STATUS.POSTED,
+      posted_at: postedAt
+    },
     entityType: 'material_write_off',
-    action: 'material_write_off_posted',
+    action: 'material_write_off_updated',
     userId,
     comment,
     transaction
@@ -323,9 +360,9 @@ const searchMaterialWriteOffs = async (req, res) => {
     if (work_performed_item_id) whereClause.work_performed_item_id = Number(work_performed_item_id);
     if (status) whereClause.status = Number(status);
     if (date_from || date_to) {
-      whereClause.write_off_date = {};
-      if (date_from) whereClause.write_off_date[Op.gte] = date_from;
-      if (date_to) whereClause.write_off_date[Op.lte] = date_to;
+      whereClause.posted_at = {};
+      if (date_from) whereClause.posted_at[Op.gte] = `${date_from} 00:00:00`;
+      if (date_to) whereClause.posted_at[Op.lte] = `${date_to} 23:59:59.999`;
     }
 
     const { count, rows } = await MaterialWriteOff.findAndCountAll({
@@ -414,7 +451,6 @@ const createMaterialWriteOff = async (req, res) => {
     const {
       warehouse_id,
       work_performed_item_id,
-      write_off_date,
       note,
       items = []
     } = req.body || {};
@@ -422,21 +458,12 @@ const createMaterialWriteOff = async (req, res) => {
     const warehouseId = toNumber(warehouse_id);
     const workPerformedItemId = toNumber(work_performed_item_id);
     const normalizedItems = mergeItemsByMaterial(items);
-    const normalizedDate = normalizeDate(write_off_date);
 
     if (!warehouseId || !workPerformedItemId) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'warehouse_id и work_performed_item_id обязательны'
-      });
-    }
-
-    if (!normalizedDate) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Некорректная дата списания'
       });
     }
 
@@ -492,13 +519,26 @@ const createMaterialWriteOff = async (req, res) => {
       });
     }
 
+    const stockAvailability = await validateWarehouseStockAvailability({
+      warehouseId,
+      items: normalizedItems,
+      transaction
+    });
+
+    if (!stockAvailability.ok) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: stockAvailability.message
+      });
+    }
+
     const writeOff = await MaterialWriteOff.create({
       project_id: context.project_id,
       block_id: context.block_id,
       warehouse_id: warehouseId,
       work_performed_id: context.work_performed_id,
       work_performed_item_id: context.id,
-      write_off_date: normalizedDate,
       status: WRITE_OFF_STATUS.CREATED,
       note: note ?? null,
       created_user_id: req.user.id,
@@ -547,7 +587,7 @@ const updateMaterialWriteOff = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { write_off_date, note, items, comment } = req.body || {};
+    const { note, items, comment } = req.body || {};
 
     const writeOff = await MaterialWriteOff.findByPk(id, { transaction });
 
@@ -576,18 +616,6 @@ const updateMaterialWriteOff = async (req, res) => {
     }
 
     const data = {};
-
-    if (write_off_date !== undefined) {
-      const normalizedDate = normalizeDate(write_off_date);
-      if (!normalizedDate) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: 'Некорректная дата списания'
-        });
-      }
-      data.write_off_date = normalizedDate;
-    }
 
     if (note !== undefined) {
       data.note = note ?? null;
@@ -626,6 +654,20 @@ const updateMaterialWriteOff = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Часть материалов не найдена'
+        });
+      }
+
+      const stockAvailability = await validateWarehouseStockAvailability({
+        warehouseId: Number(writeOff.warehouse_id),
+        items: normalizedItems,
+        transaction
+      });
+
+      if (!stockAvailability.ok) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: stockAvailability.message
         });
       }
 
@@ -731,11 +773,12 @@ const signMaterialWriteOff = async (req, res) => {
       id,
       data: {
         [config.signField]: true,
-        [config.timeField]: writeOff[config.timeField] || new Date(),
+        [config.timeField]: writeOff[config.timeField] || localTimestampLiteral(),
+        [config.userField]: writeOff[config.userField] || req.user.id,
         status: WRITE_OFF_STATUS.SIGNING
       },
       entityType: 'material_write_off',
-      action: `material_write_off_signed_${stage}`,
+      action: 'material_write_off_updated',
       userId: req.user.id,
       comment,
       transaction
@@ -771,7 +814,7 @@ const signMaterialWriteOff = async (req, res) => {
       data: finalData
     });
   } catch (error) {
-    await transaction.rollback();
+    await safeRollback(transaction);
     console.error('signMaterialWriteOff error:', error);
     return res.status(500).json({
       success: false,
@@ -846,7 +889,7 @@ const postMaterialWriteOff = async (req, res) => {
       data: posted
     });
   } catch (error) {
-    await transaction.rollback();
+    await safeRollback(transaction);
     console.error('postMaterialWriteOff error:', error);
     return res.status(500).json({
       success: false,

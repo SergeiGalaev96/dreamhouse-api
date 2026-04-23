@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const { sequelize, Warehouse, WarehouseStock } = require("../models");
 const MaterialMovement = require('../models/MaterialMovement');
 const updateWithAudit = require('../utils/updateWithAudit');
 
@@ -33,6 +34,7 @@ const searchMaterialMovements = async (req, res) => {
       project_id,
       warehouse_id,
       material_id,
+      status,
       // name,
       page = 1,
       size = 10
@@ -57,6 +59,9 @@ const searchMaterialMovements = async (req, res) => {
     if (material_id)
       whereClause.material_id = material_id
 
+    if (status)
+      whereClause.status = status
+
     const { count, rows } = await MaterialMovement.findAndCountAll({
       where: whereClause,
       limit: Number(size),
@@ -64,9 +69,39 @@ const searchMaterialMovements = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
+    const operationRows = await MaterialMovement.findAll({
+      attributes: [
+        'operation',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+      ],
+      where: whereClause,
+      group: ['operation'],
+      raw: true
+    });
+
+    const operationCounts = {
+      incoming: 0,
+      outgoing: 0,
+      transfer: 0,
+      '+': 0,
+      '-': 0,
+      '=': 0
+    };
+
+    for (const row of operationRows) {
+      const operation = row.operation;
+      const total = Number(row.total || 0);
+
+      operationCounts[operation] = total;
+      if (operation === '+') operationCounts.incoming = total;
+      if (operation === '-') operationCounts.outgoing = total;
+      if (operation === '=') operationCounts.transfer = total;
+    }
+
     res.json({
       success: true,
       data: rows,
+      operation_counts: operationCounts,
       pagination: {
         page: Number(page),
         size: Number(size),
@@ -125,6 +160,149 @@ const createMaterialMovement = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при создании транзакции',
+      error: error.message
+    });
+  }
+};
+
+const transferMaterialMovements = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { from_warehouse_id, to_warehouse_id, items } = req.body;
+
+    if (!from_warehouse_id || !to_warehouse_id) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'from_warehouse_id и to_warehouse_id обязательны'
+      });
+    }
+
+    if (Number(from_warehouse_id) === Number(to_warehouse_id)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Склады отправки и получения должны отличаться'
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'items должен быть непустым массивом'
+      });
+    }
+
+    const [fromWarehouse, toWarehouse] = await Promise.all([
+      Warehouse.findOne({
+        where: { id: Number(from_warehouse_id), deleted: false },
+        transaction
+      }),
+      Warehouse.findOne({
+        where: { id: Number(to_warehouse_id), deleted: false },
+        transaction
+      })
+    ]);
+
+    if (!fromWarehouse || !toWarehouse) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Один из складов не найден'
+      });
+    }
+
+    for (const entry of items) {
+      const { material_id, quantity, note } = entry || {};
+
+      if (!material_id || quantity === undefined || Number(quantity) <= 0) {
+        throw new Error('Некорректные данные позиции перемещения');
+      }
+
+      const sourceStock = await WarehouseStock.findOne({
+        where: {
+          warehouse_id: Number(from_warehouse_id),
+          material_id: Number(material_id),
+          deleted: false
+        },
+        transaction
+      });
+
+      if (!sourceStock) {
+        throw new Error(`Материал ${material_id} отсутствует на складе отправки`);
+      }
+
+      const availableQuantity = Number(sourceStock.quantity || 0);
+      const transferQuantity = Number(quantity);
+
+      if (transferQuantity > availableQuantity) {
+        throw new Error(`Недостаточно остатка по материалу ${material_id}`);
+      }
+
+      const destinationStock = await WarehouseStock.findOne({
+        where: {
+          warehouse_id: Number(to_warehouse_id),
+          material_id: Number(material_id),
+          deleted: false
+        },
+        transaction
+      });
+
+      await sourceStock.update(
+        { quantity: availableQuantity - transferQuantity },
+        { transaction }
+      );
+
+      if (destinationStock) {
+        await destinationStock.update(
+          { quantity: Number(destinationStock.quantity || 0) + transferQuantity },
+          { transaction }
+        );
+      } else {
+        await WarehouseStock.create(
+          {
+            warehouse_id: Number(to_warehouse_id),
+            material_id: Number(material_id),
+            material_type: sourceStock.material_type,
+            unit_of_measure: sourceStock.unit_of_measure,
+            quantity: transferQuantity
+          },
+          { transaction }
+        );
+      }
+
+      await MaterialMovement.create(
+        {
+          project_id: fromWarehouse.project_id,
+          date: new Date(),
+          from_warehouse_id: Number(from_warehouse_id),
+          to_warehouse_id: Number(to_warehouse_id),
+          material_id: Number(material_id),
+          quantity: transferQuantity,
+          user_id: req.user.id,
+          note: note || 'Перемещение между складами',
+          operation: '=',
+          status: 1
+        },
+        { transaction }
+      );
+    }
+
+    await transaction.commit();
+
+    return res.json({
+      success: true,
+      message: 'Перемещение между складами успешно выполнено'
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('transferMaterialMovements error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Ошибка сервера при перемещении материалов между складами',
       error: error.message
     });
   }
@@ -208,6 +386,7 @@ module.exports = {
   searchMaterialMovements,
   getMaterialMovementById,
   createMaterialMovement,
+  transferMaterialMovements,
   updateMaterialMovement,
   deleteMaterialMovement
 };

@@ -24,8 +24,8 @@ const Project = sequelize.define('Project', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  customer_id: {
-    type: DataTypes.INTEGER,
+  customer_name: {
+    type: DataTypes.TEXT,
     allowNull: true
   },
   start_date: {

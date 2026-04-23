@@ -130,7 +130,7 @@ router.get('/getById/:id', authenticateToken, getServiceTypeById);
  *       500:
  *         description: Ошибка сервера
  */
-router.post('/create', authenticateToken, createServiceType);
+router.post('/create', authenticateToken, authorizeRole(1, 10, 11, 4), createServiceType);
 
 
 /**
@@ -159,7 +159,7 @@ router.post('/create', authenticateToken, createServiceType);
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, updateServiceType);
+router.put('/update/:id', authenticateToken, authorizeRole(1, 10, 11, 4), updateServiceType);
 
 
 /**
@@ -186,6 +186,6 @@ router.put('/update/:id', authenticateToken, updateServiceType);
  *       500:
  *         description: Ошибка сервера
  */
-router.delete('/delete/:id', authenticateToken, authorizeRole(1,2,3), deleteServiceType);
+router.delete('/delete/:id', authenticateToken, authorizeRole(1, 10, 11, 4), deleteServiceType);
 
 module.exports = router;

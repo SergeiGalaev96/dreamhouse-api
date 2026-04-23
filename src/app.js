@@ -62,12 +62,16 @@ const materialRequestItemTypeRoutes = require('./routes/materialRequestItemTypeR
 // Склады
 const warehouseRoutes = require('./routes/warehouseRoutes');
 const warehouseStockRoutes = require('./routes/warehouseStockRoutes');
+const warehouseTransferRoutes = require('./routes/warehouseTransferRoutes');
+const warehouseTransferItemRoutes = require('./routes/warehouseTransferItemRoutes');
+const warehouseTransferStatusRoutes = require('./routes/warehouseTransferStatusRoutes');
 // Транзакции материалов
 const materialMovementRoutes = require('./routes/materialMovementRoutes');
 const materialMovementStatusRoutes = require('./routes/materialMovementStatusRoutes');
 const materialWriteOffStatusRoutes = require('./routes/materialWriteOffStatusRoutes');
 const materialWriteOffRoutes = require('./routes/materialWriteOffRoutes');
 const mbpWriteOffRoutes = require('./routes/mbpWriteOffRoutes');
+const materialProcessingWriteOffRoutes = require('./routes/materialProcessingWriteOffRoutes');
 // Заявки на закуп
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const purchaseOrderStatusRoutes = require('./routes/purchaseOrderStatusRoutes');
@@ -97,6 +101,7 @@ const generalStatusRoutes = require('./routes/generalStatusRoutes');
 
 // Отчеты
 const reportRoutes = require('./routes/reportRoutes');
+const reportDefinitionRoutes = require('./routes/reportDefinitionRoutes');
 
 const app = express();
 
@@ -249,12 +254,16 @@ updateCurrencyRates();
 // Склады
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/warehouseStocks', warehouseStockRoutes);
+app.use('/api/warehouseTransfers', warehouseTransferRoutes);
+app.use('/api/warehouseTransferItems', warehouseTransferItemRoutes);
+app.use('/api/warehouseTransferStatuses', warehouseTransferStatusRoutes);
 // Транзакции материалов
 app.use('/api/materialMovements', materialMovementRoutes);
 app.use('/api/materialMovementStatuses', materialMovementStatusRoutes);
 app.use('/api/materialWriteOffStatuses', materialWriteOffStatusRoutes);
 app.use('/api/materialWriteOffs', materialWriteOffRoutes);
 app.use('/api/mbpWriteOffs', mbpWriteOffRoutes);
+app.use('/api/materialProcessingWriteOffs', materialProcessingWriteOffRoutes);
 
 // Контракты
 app.use('/api/contracts', contractRoutes);
@@ -273,6 +282,7 @@ app.use('/api/generalStatuses', generalStatusRoutes);
 
 // Отчеты 
 app.use('/api/reports', reportRoutes);
+app.use('/api/reportDefinitions', reportDefinitionRoutes);
 
 
 // Обработка 404

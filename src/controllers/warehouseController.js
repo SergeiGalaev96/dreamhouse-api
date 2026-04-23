@@ -1,6 +1,71 @@
-const { Op } = require("sequelize");
-const { Warehouse, WarehouseStock } = require('../models');
+const { Op, QueryTypes } = require("sequelize");
+const { sequelize, Warehouse, WarehouseStock } = require('../models');
 const updateWithAudit = require('../utils/updateWithAudit');
+
+const countByWarehouse = async (sql, warehouseIds) => {
+  if (!warehouseIds.length) return new Map();
+
+  const rows = await sequelize.query(sql, {
+    replacements: { warehouseIds },
+    type: QueryTypes.SELECT
+  });
+
+  return new Map(rows.map((row) => [Number(row.warehouse_id), Number(row.total || 0)]));
+};
+
+const movementOperationCountsByWarehouse = async (warehouseIds) => {
+  if (!warehouseIds.length) return new Map();
+
+  const rows = await sequelize.query(
+    `
+      select warehouse_id, operation, count(*)::int as total
+      from (
+        select from_warehouse_id as warehouse_id, operation
+        from construction.material_movements
+        where from_warehouse_id in (:warehouseIds)
+          and (deleted = false or deleted is null)
+        union all
+        select to_warehouse_id as warehouse_id, operation
+        from construction.material_movements
+        where to_warehouse_id in (:warehouseIds)
+          and (deleted = false or deleted is null)
+      ) movement_rows
+      where warehouse_id is not null
+      group by warehouse_id, operation
+    `,
+    {
+      replacements: { warehouseIds },
+      type: QueryTypes.SELECT
+    }
+  );
+
+  const counts = new Map();
+
+  for (const row of rows) {
+    const warehouseId = Number(row.warehouse_id);
+    const operation = row.operation;
+    const total = Number(row.total || 0);
+
+    if (!counts.has(warehouseId)) {
+      counts.set(warehouseId, {
+        incoming: 0,
+        outgoing: 0,
+        transfer: 0,
+        '+': 0,
+        '-': 0,
+        '=': 0
+      });
+    }
+
+    const warehouseCounts = counts.get(warehouseId);
+    warehouseCounts[operation] = total;
+    if (operation === '+') warehouseCounts.incoming = total;
+    if (operation === '-') warehouseCounts.outgoing = total;
+    if (operation === '=') warehouseCounts.transfer = total;
+  }
+
+  return counts;
+};
 
 
 const getAllWarehouses = async (req, res) => {
@@ -82,9 +147,101 @@ const searchWarehouses = async (req, res) => {
       ]
     });
 
+    const warehouseIds = rows.map((warehouse) => Number(warehouse.id));
+    const [
+      materialRecordCounts,
+      avrWriteOffCounts,
+      mbpWriteOffCounts,
+      processingWriteOffCounts,
+      transferCounts,
+      movementOperationCounts
+    ] = await Promise.all([
+      countByWarehouse(
+        `
+          select warehouse_id, count(*)::int as total
+          from construction.warehouse_stock
+          where warehouse_id in (:warehouseIds)
+            and (deleted = false or deleted is null)
+          group by warehouse_id
+        `,
+        warehouseIds
+      ),
+      countByWarehouse(
+        `
+          select warehouse_id, count(*)::int as total
+          from construction.material_write_offs
+          where warehouse_id in (:warehouseIds)
+            and (deleted = false or deleted is null)
+          group by warehouse_id
+        `,
+        warehouseIds
+      ),
+      countByWarehouse(
+        `
+          select warehouse_id, count(*)::int as total
+          from construction.mbp_write_offs
+          where warehouse_id in (:warehouseIds)
+            and (deleted = false or deleted is null)
+          group by warehouse_id
+        `,
+        warehouseIds
+      ),
+      countByWarehouse(
+        `
+          select warehouse_id, count(*)::int as total
+          from construction.material_processing_write_offs
+          where warehouse_id in (:warehouseIds)
+            and (deleted = false or deleted is null)
+          group by warehouse_id
+        `,
+        warehouseIds
+      ),
+      countByWarehouse(
+        `
+          select warehouse_id, count(*)::int as total
+          from (
+            select from_warehouse_id as warehouse_id
+            from construction.warehouse_transfers
+            where from_warehouse_id in (:warehouseIds)
+              and (deleted = false or deleted is null)
+            union all
+            select to_warehouse_id as warehouse_id
+            from construction.warehouse_transfers
+            where to_warehouse_id in (:warehouseIds)
+              and (deleted = false or deleted is null)
+          ) transfer_rows
+          group by warehouse_id
+        `,
+        warehouseIds
+      ),
+      movementOperationCountsByWarehouse(warehouseIds)
+    ]);
+
+    const enrichedRows = rows.map((warehouse) => {
+      const data = warehouse.toJSON();
+      const warehouseId = Number(data.id);
+
+      return {
+        ...data,
+        material_records_count: materialRecordCounts.get(warehouseId) || 0,
+        avr_write_off_count: avrWriteOffCounts.get(warehouseId) || 0,
+        mbp_write_off_count: mbpWriteOffCounts.get(warehouseId) || 0,
+        processing_write_off_count: processingWriteOffCounts.get(warehouseId) || 0,
+        transfer_count: transferCounts.get(warehouseId) || 0,
+        operation_counts: movementOperationCounts.get(warehouseId) || {
+          incoming: 0,
+          outgoing: 0,
+          transfer: 0,
+          '+': 0,
+          '-': 0,
+          '=': 0
+        }
+      };
+    });
+
     res.json({
       success: true,
-      data: rows,
+      data: enrichedRows,
       pagination: {
         page: Number(page),
         size: Number(size),

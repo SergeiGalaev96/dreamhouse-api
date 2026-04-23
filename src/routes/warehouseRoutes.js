@@ -194,7 +194,7 @@ router.post('/create', authenticateToken, authorizeRole(1), createWarehouse);
  *       500:
  *         description: Ошибка сервера
  */
-router.put('/update/:id', authenticateToken, authorizeRole(1), updateWarehouse);
+router.put('/update/:id', authenticateToken, authorizeRole(1, 10), updateWarehouse);
 
 /**
  * @swagger

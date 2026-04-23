@@ -1,5 +1,5 @@
 const { Op, Sequelize } = require("sequelize");
-const { Project } = require("../models");
+const { sequelize, Project, ProjectBlock, MaterialEstimate, Warehouse } = require("../models");
 const updateWithAudit = require('../utils/updateWithAudit');
 
 const getAllProjects = async (req, res) => {
@@ -302,15 +302,64 @@ const getProjectById = async (req, res) => {
 };
 
 const createProject = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const project = await Project.create(req.body);
+    const project = await Project.create(
+      {
+        ...req.body,
+        deleted: false
+      },
+      { transaction }
+    );
+
+    const defaultBlockName = 'Блок А';
+    const defaultBlock = await ProjectBlock.create(
+      {
+        name: defaultBlockName,
+        project_id: project.id,
+        planned_budget: Number(req.body?.planned_budget || 0),
+        total_area: 0,
+        sale_area: 0,
+        deleted: false
+      },
+      { transaction }
+    );
+
+    await MaterialEstimate.create(
+      {
+        block_id: defaultBlock.id,
+        status: 1,
+        created_user_id: req.user.id,
+        name: `Смета ${defaultBlockName}`,
+        deleted: false
+      },
+      { transaction }
+    );
+
+    await Warehouse.create(
+      {
+        project_id: project.id,
+        name: `Склад №1: ${project.name}`,
+        address: req.body?.address || null,
+        manager_id: req.body?.warehouse_manager_id || null,
+        phone: null,
+        deleted: false
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
 
     res.status(201).json({
       success: true,
       message: 'Проект успешно создан',
-      data: project
+      data: {
+        ...project.toJSON(),
+        default_block_id: defaultBlock.id
+      }
     });
   } catch (error) {
+    await transaction.rollback();
     res.status(500).json({
       success: false,
       message: 'Ошибка сервера при создании проекта',

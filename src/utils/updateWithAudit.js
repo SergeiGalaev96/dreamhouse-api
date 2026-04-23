@@ -38,6 +38,7 @@ const updateWithAudit = async ({
 
   // 4️⃣ Апдейт
   await instance.update(data, { transaction });
+  await instance.reload({ transaction });
 
   // 5️⃣ СНАПШОТ ПОСЛЕ
   const newSnapshot = sanitize(
