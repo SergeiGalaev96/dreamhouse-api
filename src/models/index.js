@@ -41,6 +41,7 @@ const MbpWriteOffItem = require('./MbpWriteOffItem');
 const MaterialProcessingWriteOff = require('./MaterialProcessingWriteOff');
 const MaterialProcessingWriteOffItem = require('./MaterialProcessingWriteOffItem');
 const ReportDefinition = require('./ReportDefinition');
+const Notification = require('./Notification');
 
 const Document = require('./Document');
 const DocumentFile = require('./DocumentFile');
@@ -440,6 +441,7 @@ module.exports = {
   MaterialProcessingWriteOff,
   MaterialProcessingWriteOffItem,
   ReportDefinition,
+  Notification,
   Document,
   DocumentFile
 };

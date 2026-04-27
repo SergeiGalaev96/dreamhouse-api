@@ -11,6 +11,8 @@ const {
 } = require('../models');
 const { localTimestampLiteral } = require('../utils/dateTime');
 
+const WAREHOUSE_OPERATION_ROLE_IDS = [1, 5, 10, 11, 15];
+
 const safeRollback = async (transaction) => {
   if (!transaction || transaction.finished) return;
   await transaction.rollback();
@@ -19,6 +21,28 @@ const safeRollback = async (transaction) => {
 const toNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeWarehouseTransferItem = (item) => {
+  if (!item) return item;
+
+  return {
+    ...item,
+    quantity: toNumber(item.quantity)
+  };
+};
+
+const serializeWarehouseTransfer = (transfer) => {
+  if (!transfer) return transfer;
+
+  const plain = typeof transfer.toJSON === 'function' ? transfer.toJSON() : transfer;
+
+  return {
+    ...plain,
+    items: Array.isArray(plain.items)
+      ? plain.items.map((item) => normalizeWarehouseTransferItem(item))
+      : plain.items
+  };
 };
 
 const canUserSignSide = ({ user, side, fromWarehouse, toWarehouse, fromProject, toProject }) => {
@@ -39,25 +63,6 @@ const canUserSignSide = ({ user, side, fromWarehouse, toWarehouse, fromProject, 
   return false;
 };
 
-const buildTransferQuery = async (where, limit, offset) => {
-  const { count, rows } = await WarehouseTransfer.findAndCountAll({
-    where,
-    include: [
-      {
-        model: WarehouseTransferItem,
-        as: 'items',
-        where: { deleted: false },
-        required: false
-      }
-    ],
-    limit,
-    offset,
-    order: [['created_at', 'DESC']]
-  });
-
-  return { count, rows };
-};
-
 const searchWarehouseTransfers = async (req, res) => {
   try {
     const {
@@ -67,7 +72,10 @@ const searchWarehouseTransfers = async (req, res) => {
       size = 10
     } = req.body || {};
 
-    const offset = (Number(page) - 1) * Number(size);
+    const pageNumber = Math.max(Number(page) || 1, 1);
+    const sizeNumber = Math.max(Number(size) || 10, 1);
+    const offset = (pageNumber - 1) * sizeNumber;
+
     const where = {
       deleted: false
     };
@@ -83,18 +91,37 @@ const searchWarehouseTransfers = async (req, res) => {
       where.status = Number(status);
     }
 
-    const { count, rows } = await buildTransferQuery(where, Number(size), offset);
+    const { count, rows } = await WarehouseTransfer.findAndCountAll({
+      where,
+      include: [
+        {
+          model: WarehouseTransferItem,
+          as: 'items',
+          where: {
+            deleted: false
+          },
+          required: false
+        }
+      ],
+      distinct: true,
+      col: 'id',
+      limit: sizeNumber,
+      offset,
+      order: [['created_at', 'DESC']]
+    });
+
+    const total = Array.isArray(count) ? count.length : count;
 
     return res.json({
       success: true,
-      data: rows,
+      data: rows.map((row) => serializeWarehouseTransfer(row)),
       pagination: {
-        page: Number(page),
-        size: Number(size),
-        total: count,
-        pages: Math.ceil(count / Number(size)),
-        hasNext: Number(page) * Number(size) < count,
-        hasPrev: Number(page) > 1
+        page: pageNumber,
+        size: sizeNumber,
+        total,
+        pages: Math.ceil(total / sizeNumber),
+        hasNext: pageNumber * sizeNumber < total,
+        hasPrev: pageNumber > 1
       }
     });
   } catch (error) {
@@ -135,7 +162,7 @@ const getWarehouseTransferById = async (req, res) => {
 
     return res.json({
       success: true,
-      data: transfer
+      data: serializeWarehouseTransfer(transfer)
     });
   } catch (error) {
     console.error('getWarehouseTransferById error:', error);
@@ -151,6 +178,17 @@ const createWarehouseTransfer = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    const currentUserRoleId = Number(req.user?.role_id);
+
+    if (!WAREHOUSE_OPERATION_ROLE_IDS.includes(currentUserRoleId)) {
+      await safeRollback(transaction);
+      return res.status(403).json({
+        success: false,
+        message:
+          '\u041f\u0440\u0438\u0435\u043c\u043a\u0430, \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u044f \u0438 \u043f\u0435\u0440\u0435\u043c\u0435\u0449\u0435\u043d\u0438\u044f \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443, \u0437\u0430\u0432. \u0441\u043a\u043b\u0430\u0434\u043e\u043c, \u043c\u0430\u0441\u0442\u0435\u0440\u0443, \u041f\u0422\u041e \u0438 \u0433\u043b. \u0438\u043d\u0436\u0435\u043d\u0435\u0440\u0443'
+      });
+    }
+
     const {
       from_warehouse_id,
       to_warehouse_id,
@@ -245,7 +283,7 @@ const createWarehouseTransfer = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Накладная на перемещение создана',
-      data: transfer
+      data: serializeWarehouseTransfer(transfer)
     });
   } catch (error) {
     await safeRollback(transaction);
@@ -464,7 +502,7 @@ const signWarehouseTransfer = async (req, res) => {
     return res.json({
       success: true,
       message: bothSigned ? 'Накладная подписана и проведена' : 'Накладная подписана',
-      data: transfer
+      data: serializeWarehouseTransfer(transfer)
     });
   } catch (error) {
     await safeRollback(transaction);
@@ -537,7 +575,7 @@ const rejectWarehouseTransfer = async (req, res) => {
     return res.json({
       success: true,
       message: 'Накладная отклонена',
-      data: transfer
+      data: serializeWarehouseTransfer(transfer)
     });
   } catch (error) {
     await safeRollback(transaction);

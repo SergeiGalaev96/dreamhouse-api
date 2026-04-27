@@ -1986,6 +1986,322 @@ const getMbpWriteOffReport = async (req, res) => {
 };
 
 /* ============================================================
+   PROJECTS OVERVIEW REPORT
+============================================================ */
+const getProjectsOverviewReport = async (req, res) => {
+  try {
+    const rows = await sequelize.query(
+      `
+      SELECT
+        p.id AS project_id,
+        p.name AS project_name,
+        COALESCE(ps.name, '') AS status_name,
+        COALESCE(p.customer_name, '') AS customer_name,
+        COALESCE(p.address, '') AS address,
+        p.start_date,
+        p.end_date,
+        COALESCE(p.planned_budget, 0) AS planned_budget,
+        COALESCE(pb_stats.blocks_count, 0) AS blocks_count,
+        COALESCE(pb_stats.total_area, 0) AS total_area,
+        COALESCE(pb_stats.sale_area, 0) AS sale_area,
+        COALESCE(warehouse_stats.warehouses_count, 0) AS warehouses_count,
+        COALESCE(estimate_stats.estimates_count, 0) AS estimates_count,
+        COALESCE(request_stats.material_requests_count, 0) AS material_requests_count,
+        COALESCE(po_stats.purchase_orders_count, 0) AS purchase_orders_count,
+        COALESCE(po_stats.completed_purchase_orders_count, 0) AS completed_purchase_orders_count,
+        COALESCE(wp_stats.work_performed_count, 0) AS work_performed_count,
+        COALESCE(wp_stats.signed_work_performed_count, 0) AS signed_work_performed_count,
+        COALESCE(mw_stats.material_write_off_count, 0) AS material_write_off_count,
+        COALESCE(mbp_stats.mbp_write_off_count, 0) AS mbp_write_off_count,
+        COALESCE(proc_stats.processing_write_off_count, 0) AS processing_write_off_count,
+        COALESCE(transfer_stats.transfer_count, 0) AS transfer_count,
+        COALESCE(team_stats.team_members_count, 0) AS team_members_count,
+        COALESCE(progress_stats.progress_percent, 0) AS progress_percent,
+        COALESCE(budget_stats.actual_budget, 0) AS actual_budget,
+        CASE
+          WHEN COALESCE(p.planned_budget, 0) = 0 THEN 0
+          ELSE ROUND((((COALESCE(budget_stats.actual_budget, 0) / NULLIF(p.planned_budget, 0)) * 100)::numeric), 2)
+        END AS budget_percent,
+        (COALESCE(p.planned_budget, 0) - COALESCE(budget_stats.actual_budget, 0)) AS remaining_budget
+      FROM construction.projects p
+      LEFT JOIN construction.project_statuses ps
+        ON ps.id = p.status
+       AND ps.deleted = false
+      LEFT JOIN (
+        SELECT
+          pb.project_id,
+          COUNT(*) AS blocks_count,
+          SUM(COALESCE(pb.total_area, 0)) AS total_area,
+          SUM(COALESCE(pb.sale_area, 0)) AS sale_area
+        FROM construction.project_blocks pb
+        WHERE pb.deleted = false
+        GROUP BY pb.project_id
+      ) pb_stats ON pb_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          w.project_id,
+          COUNT(*) AS warehouses_count
+        FROM construction.warehouses w
+        WHERE w.deleted = false
+        GROUP BY w.project_id
+      ) warehouse_stats ON warehouse_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          pb.project_id,
+          COUNT(me.id) AS estimates_count
+        FROM construction.project_blocks pb
+        LEFT JOIN construction.material_estimates me
+          ON me.block_id = pb.id
+         AND me.deleted = false
+        WHERE pb.deleted = false
+        GROUP BY pb.project_id
+      ) estimate_stats ON estimate_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          mr.project_id,
+          COUNT(*) AS material_requests_count
+        FROM construction.material_requests mr
+        WHERE mr.deleted = false
+        GROUP BY mr.project_id
+      ) request_stats ON request_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          pb.project_id,
+          COUNT(DISTINCT po.id) AS purchase_orders_count,
+          COUNT(DISTINCT CASE WHEN po.status IN (4, 5) THEN po.id END) AS completed_purchase_orders_count
+        FROM construction.project_blocks pb
+        LEFT JOIN construction.purchase_orders po
+          ON po.block_id = pb.id
+         AND po.deleted = false
+        WHERE pb.deleted = false
+        GROUP BY pb.project_id
+      ) po_stats ON po_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          pb.project_id,
+          COUNT(DISTINCT wp.id) AS work_performed_count,
+          COUNT(DISTINCT CASE WHEN wp.status = 2 THEN wp.id END) AS signed_work_performed_count
+        FROM construction.project_blocks pb
+        LEFT JOIN construction.work_performed wp
+          ON wp.block_id = pb.id
+         AND wp.deleted = false
+        WHERE pb.deleted = false
+        GROUP BY pb.project_id
+      ) wp_stats ON wp_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          mw.project_id,
+          COUNT(*) AS material_write_off_count
+        FROM construction.material_write_offs mw
+        WHERE mw.deleted = false
+          AND mw.status = 3
+        GROUP BY mw.project_id
+      ) mw_stats ON mw_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          mw.project_id,
+          COUNT(*) AS mbp_write_off_count
+        FROM construction.mbp_write_offs mw
+        WHERE mw.deleted = false
+          AND mw.status = 3
+        GROUP BY mw.project_id
+      ) mbp_stats ON mbp_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          pw.project_id,
+          COUNT(*) AS processing_write_off_count
+        FROM construction.material_processing_write_offs pw
+        WHERE pw.deleted = false
+          AND pw.status = 3
+        GROUP BY pw.project_id
+      ) proc_stats ON proc_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          pbf.project_id,
+          COUNT(*) AS transfer_count
+        FROM construction.project_blocks pbf
+        JOIN construction.warehouses wf
+          ON wf.project_id = pbf.project_id
+         AND wf.deleted = false
+        JOIN construction.warehouse_transfers wt
+          ON (wt.from_warehouse_id = wf.id OR wt.to_warehouse_id = wf.id)
+         AND wt.deleted = false
+        WHERE pbf.deleted = false
+        GROUP BY pbf.project_id
+      ) transfer_stats ON transfer_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          wt.project_id,
+          COUNT(tm.id) AS team_members_count
+        FROM construction.work_teams wt
+        LEFT JOIN construction.team_members tm
+          ON tm.team_id = wt.id
+         AND tm.deleted = false
+        WHERE wt.deleted = false
+        GROUP BY wt.project_id
+      ) team_stats ON team_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          project_scope.project_id,
+          CASE
+            WHEN SUM(project_scope.quantity_planned) = 0 THEN 0
+            ELSE ROUND(
+              (
+                SUM(COALESCE(project_scope.done_quantity, 0))::numeric /
+                NULLIF(SUM(project_scope.quantity_planned)::numeric, 0)
+              ) * 100
+            , 2)
+          END AS progress_percent
+        FROM (
+          SELECT
+            pb.project_id,
+            mei.quantity_planned,
+            COALESCE(wpi_sum.done_quantity, 0) AS done_quantity
+          FROM construction.project_blocks pb
+          LEFT JOIN construction.material_estimates me
+            ON me.block_id = pb.id
+           AND me.deleted = false
+          LEFT JOIN construction.material_estimate_items mei
+            ON mei.material_estimate_id = me.id
+           AND mei.item_type = 2
+           AND mei.deleted = false
+          LEFT JOIN (
+            SELECT
+              wpi.material_estimate_item_id,
+              SUM(wpi.quantity) AS done_quantity
+            FROM construction.work_performed_items wpi
+            JOIN construction.work_performed wp
+              ON wp.id = wpi.work_performed_id
+             AND wp.deleted = false
+             AND wp.status = 2
+            WHERE wpi.deleted = false
+            GROUP BY wpi.material_estimate_item_id
+          ) wpi_sum
+            ON wpi_sum.material_estimate_item_id = mei.id
+          WHERE pb.deleted = false
+        ) project_scope
+        GROUP BY project_scope.project_id
+      ) progress_stats ON progress_stats.project_id = p.id
+      LEFT JOIN (
+        SELECT
+          budget_scope.project_id,
+          (
+            COALESCE(SUM(budget_scope.work_budget), 0) +
+            COALESCE(SUM(budget_scope.purchase_budget), 0)
+          ) AS actual_budget
+        FROM (
+          SELECT
+            pb.project_id,
+            SUM(
+              COALESCE(wpi.quantity, 0) * COALESCE(wpi.price, 0) *
+              CASE
+                WHEN wpi.currency = 1 THEN 1
+                ELSE COALESCE(wpi.currency_rate, 1)
+              END
+            ) AS work_budget,
+            0::numeric AS purchase_budget
+          FROM construction.project_blocks pb
+          LEFT JOIN construction.work_performed wp
+            ON wp.block_id = pb.id
+           AND wp.deleted = false
+           AND wp.status = 2
+          LEFT JOIN construction.work_performed_items wpi
+            ON wpi.work_performed_id = wp.id
+           AND wpi.deleted = false
+          WHERE pb.deleted = false
+          GROUP BY pb.project_id
+
+          UNION ALL
+
+          SELECT
+            pb.project_id,
+            0::numeric AS work_budget,
+            SUM(
+              COALESCE(poi.quantity, 0) * COALESCE(poi.price, 0) *
+              CASE
+                WHEN poi.currency = 1 THEN 1
+                ELSE COALESCE(poi.currency_rate, 1)
+              END
+            ) AS purchase_budget
+          FROM construction.project_blocks pb
+          LEFT JOIN construction.purchase_orders po
+            ON po.block_id = pb.id
+           AND po.deleted = false
+           AND po.status IN (4, 5)
+          LEFT JOIN construction.purchase_order_items poi
+            ON poi.purchase_order_id = po.id
+           AND poi.deleted = false
+          WHERE pb.deleted = false
+          GROUP BY pb.project_id
+        ) budget_scope
+        GROUP BY budget_scope.project_id
+      ) budget_stats ON budget_stats.project_id = p.id
+      WHERE p.deleted = false
+      ORDER BY p.created_at DESC, p.id DESC
+      `,
+      {
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
+
+    const totals = rows.reduce(
+      (acc, row) => {
+        acc.projects_count += 1;
+        acc.total_planned_budget += toNumber(row.planned_budget);
+        acc.total_actual_budget += toNumber(row.actual_budget);
+        acc.total_remaining_budget += toNumber(row.remaining_budget);
+        acc.total_progress_percent += toNumber(row.progress_percent);
+        acc.total_blocks += toNumber(row.blocks_count);
+        acc.total_warehouses += toNumber(row.warehouses_count);
+        acc.total_estimates += toNumber(row.estimates_count);
+        acc.total_material_requests += toNumber(row.material_requests_count);
+        acc.total_purchase_orders += toNumber(row.purchase_orders_count);
+        acc.total_work_performed += toNumber(row.work_performed_count);
+        return acc;
+      },
+      {
+        projects_count: 0,
+        total_planned_budget: 0,
+        total_actual_budget: 0,
+        total_remaining_budget: 0,
+        total_progress_percent: 0,
+        total_blocks: 0,
+        total_warehouses: 0,
+        total_estimates: 0,
+        total_material_requests: 0,
+        total_purchase_orders: 0,
+        total_work_performed: 0
+      }
+    );
+
+    totals.avg_progress_percent = totals.projects_count
+      ? Number((totals.total_progress_percent / totals.projects_count).toFixed(2))
+      : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        header: {
+          report_date: toDateOnly(new Date()),
+          generated_at: new Date().toISOString(),
+          projects_count: totals.projects_count
+        },
+        totals,
+        rows
+      }
+    });
+  } catch (error) {
+    console.error('Projects overview report error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Ошибка формирования сводного отчета по проектам',
+      error: error.message
+    });
+  }
+};
+
+/* ============================================================
    ESTIMATE STAGE REPORT
 ============================================================ */
 const getEstimateStageReport = async (req, res) => {
@@ -2247,6 +2563,7 @@ module.exports = {
   getForm2Report,
   getForm19Report,
   getMbpWriteOffReport,
+  getProjectsOverviewReport,
   getEstimateStageReport,
   getScheduleReport,
   getMaterialScheduleReport

@@ -47,7 +47,8 @@ MaterialRequestItem.init({
     allowNull: true
   },
   status: {
-    type: DataTypes.INTEGER
+    type: DataTypes.INTEGER,
+    defaultValue: 1
   },
   stage_id: {
     type: DataTypes.INTEGER

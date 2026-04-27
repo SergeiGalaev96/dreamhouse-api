@@ -31,6 +31,18 @@ INSERT INTO construction.report_definitions (
   deleted
 ) VALUES
 (
+  'projects-overview',
+  'Сводка по проектам',
+  '/report/projects-overview',
+  '{"fields":[]}',
+  true,
+  true,
+  true,
+  5,
+  true,
+  false
+),
+(
   'form2',
   'Форма 2',
   '/report/form2',
@@ -106,8 +118,8 @@ INSERT INTO construction.report_definitions (
   'estimate-stage',
   'Сметный отчет',
   '/report/estimate-stage',
-  '{"preview":false,"fields":[{"name":"blockId","type":"dict","label":"Блок","required":true,"options_api":"projectBlocks"}]}',
-  false,
+  '{"fields":[{"name":"blockId","type":"dict","label":"Блок","required":true,"options_api":"projectBlocks"}]}',
+  true,
   false,
   true,
   70,

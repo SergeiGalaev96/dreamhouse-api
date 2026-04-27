@@ -12,6 +12,8 @@ const UserRole = require('../models/UserRole');
 const updateWithAudit = require('../utils/updateWithAudit');
 const { localTimestampLiteral } = require('../utils/dateTime');
 
+const WAREHOUSE_OPERATION_ROLE_IDS = [1, 5, 10, 11, 15];
+
 const WRITE_OFF_STATUS = {
   CREATED: 1,
   SIGNING: 2,
@@ -74,6 +76,28 @@ const buildPagination = (page, size, total) => ({
   hasNext: page * size < total,
   hasPrev: page > 1
 });
+
+const normalizeMbpWriteOffItem = (item) => {
+  if (!item) return item;
+
+  return {
+    ...item,
+    quantity: toNumber(item.quantity)
+  };
+};
+
+const serializeMbpWriteOff = (writeOff) => {
+  if (!writeOff) return writeOff;
+
+  const plain = typeof writeOff.toJSON === 'function' ? writeOff.toJSON() : writeOff;
+
+  return {
+    ...plain,
+    items: Array.isArray(plain.items)
+      ? plain.items.map((item) => normalizeMbpWriteOffItem(item))
+      : plain.items
+  };
+};
 
 const safeRollback = async (transaction) => {
   if (!transaction || transaction.finished) {
@@ -316,7 +340,7 @@ const searchMbpWriteOffs = async (req, res) => {
 
     return res.json({
       success: true,
-      data: rows,
+      data: rows.map((row) => serializeMbpWriteOff(row)),
       pagination: buildPagination(Number(page), Number(size), count)
     });
   } catch (error) {
@@ -343,7 +367,7 @@ const getMbpWriteOffById = async (req, res) => {
 
     return res.json({
       success: true,
-      data: writeOff
+      data: serializeMbpWriteOff(writeOff)
     });
   } catch (error) {
     return res.status(500).json({
@@ -358,6 +382,17 @@ const createMbpWriteOff = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    const currentUserRoleId = Number(req.user?.role_id);
+
+    if (!WAREHOUSE_OPERATION_ROLE_IDS.includes(currentUserRoleId)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        message:
+          '\u041f\u0440\u0438\u0435\u043c\u043a\u0430, \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u044f \u0438 \u043f\u0435\u0440\u0435\u043c\u0435\u0449\u0435\u043d\u0438\u044f \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443, \u0437\u0430\u0432. \u0441\u043a\u043b\u0430\u0434\u043e\u043c, \u043c\u0430\u0441\u0442\u0435\u0440\u0443, \u041f\u0422\u041e \u0438 \u0433\u043b. \u0438\u043d\u0436\u0435\u043d\u0435\u0440\u0443'
+      });
+    }
+
     const { warehouse_id, note, items = [] } = req.body || {};
     const warehouseId = toNumber(warehouse_id);
     const normalizedItems = mergeItemsByMaterial(items);
@@ -452,7 +487,7 @@ const createMbpWriteOff = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Списание МБП успешно создано',
-      data: created
+      data: serializeMbpWriteOff(created)
     });
   } catch (error) {
     await transaction.rollback();
@@ -577,7 +612,7 @@ const updateMbpWriteOff = async (req, res) => {
     return res.json({
       success: true,
       message: 'Списание МБП успешно обновлено',
-      data: updated
+      data: serializeMbpWriteOff(updated)
     });
   } catch (error) {
     await safeRollback(transaction);
@@ -645,7 +680,7 @@ const signMbpWriteOff = async (req, res) => {
       return res.json({
         success: true,
         message: 'Этап уже подписан',
-        data: writeOff
+        data: serializeMbpWriteOff(writeOff)
       });
     }
 
@@ -692,7 +727,7 @@ const signMbpWriteOff = async (req, res) => {
     return res.json({
       success: true,
       message: responseMessage,
-      data: finalData
+      data: serializeMbpWriteOff(finalData)
     });
   } catch (error) {
     await safeRollback(transaction);

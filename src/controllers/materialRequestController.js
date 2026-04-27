@@ -5,11 +5,240 @@ const {
   MaterialRequestItem,
   Material,
   UnitOfMeasure
-} = require('../models');
-const User = require('../models/User');
+} = require("../models");
+const User = require("../models/User");
 const Project = require("../models/Project");
-const { sendMaterialRequestEmail } = require('../utils/mailer');
-const updateWithAudit = require('../utils/updateWithAudit');
+const ProjectBlock = require("../models/ProjectBlock");
+const { sendMaterialRequestEmail } = require("../utils/mailer");
+const updateWithAudit = require("../utils/updateWithAudit");
+const { notifyUsers } = require("../utils/notifications");
+const { sendPushToUser } = require("../utils/pushNotifications");
+
+const CREATE_MATERIAL_REQUEST_ROLE_IDS = [1, 4, 10, 11];
+const SIGNATURE_ROLE_IDS = [7, 9, 10, 11];
+const PURCHASE_AGENT_ROLE_ID = 7;
+
+const buildLocationLabel = (projectName, blockName) =>
+  [projectName, blockName].filter(Boolean).join(", ");
+
+const buildSignatureRequestMessage = ({ materialRequestId, projectName, blockName }) => {
+  const requestLabel = `Заявка на материалы №${materialRequestId}`;
+  const locationLabel = buildLocationLabel(projectName, blockName);
+
+  return locationLabel
+    ? `${requestLabel} (${locationLabel}) ожидает вашей подписи`
+    : `${requestLabel} ожидает вашей подписи`;
+};
+
+const buildReadyForPurchaseMessage = ({ materialRequestId, projectName, blockName }) => {
+  const requestLabel = `Заявка на материалы №${materialRequestId}`;
+  const locationLabel = buildLocationLabel(projectName, blockName);
+
+  return locationLabel
+    ? `${requestLabel} (${locationLabel}) полностью подписана и готова к закупу`
+    : `${requestLabel} полностью подписана и готова к закупу`;
+};
+
+const loadRequestLocation = async ({ projectId, blockId, transaction = null }) => {
+  const [project, block] = await Promise.all([
+    projectId
+      ? Project.findOne({
+          where: {
+            id: projectId,
+            deleted: false
+          },
+          attributes: ["id", "name", "foreman_id"],
+          transaction
+        })
+      : null,
+    blockId
+      ? ProjectBlock.findOne({
+          where: {
+            id: blockId,
+            deleted: false
+          },
+          attributes: ["id", "name"],
+          transaction
+        })
+      : null
+  ]);
+
+  return { project, block };
+};
+
+const loadSignatureRecipientIds = async ({ projectId, transaction = null }) => {
+  const { project } = await loadRequestLocation({ projectId, transaction });
+
+  const [eligibleForeman, roleUsers] = await Promise.all([
+    project?.foreman_id
+      ? User.findOne({
+          where: {
+            id: project.foreman_id,
+            deleted: false,
+            supplier_id: {
+              [Op.is]: null
+            },
+            role_id: {
+              [Op.ne]: 13
+            }
+          },
+          attributes: ["id"],
+          transaction
+        })
+      : null,
+    User.findAll({
+      where: {
+        deleted: false,
+        supplier_id: {
+          [Op.is]: null
+        },
+        role_id: {
+          [Op.in]: SIGNATURE_ROLE_IDS
+        }
+      },
+      attributes: ["id"],
+      transaction
+    })
+  ]);
+
+  return [...new Set(
+    [
+      eligibleForeman?.id,
+      ...roleUsers.map((user) => user.id)
+    ]
+      .map((userId) => Number(userId))
+      .filter((userId) => Number.isFinite(userId) && userId > 0)
+  )];
+};
+
+const sendMaterialRequestSignaturePush = async ({ materialRequestId, projectId, blockId }) => {
+  const { project, block } = await loadRequestLocation({ projectId, blockId });
+  const recipientIds = await loadSignatureRecipientIds({ projectId });
+
+  if (!recipientIds.length) {
+    return;
+  }
+
+  const title = "Требуется подпись заявки";
+  const body = buildSignatureRequestMessage({
+    materialRequestId,
+    projectName: project?.name,
+    blockName: block?.name
+  });
+
+  await Promise.allSettled(
+    recipientIds.map((userId) =>
+      sendPushToUser({
+        userId,
+        title,
+        body,
+        data: {
+          type: "material_request_signature_required",
+          entityType: "material_request",
+          materialRequestId: String(materialRequestId)
+        }
+      })
+    )
+  );
+};
+
+const notifyPurchaseAgentsAboutApprovedRequest = async ({
+  materialRequestId,
+  projectId,
+  blockId
+}) => {
+  const { project, block } = await loadRequestLocation({ projectId, blockId });
+
+  const purchaseAgents = await User.findAll({
+    where: {
+      deleted: false,
+      supplier_id: {
+        [Op.is]: null
+      },
+      role_id: PURCHASE_AGENT_ROLE_ID
+    },
+    attributes: ["id", "email", "first_name", "last_name"]
+  });
+
+  if (!purchaseAgents.length) {
+    return;
+  }
+
+  const materialRequestItems = await MaterialRequestItem.findAll({
+    where: {
+      material_request_id: materialRequestId,
+      deleted: false
+    },
+    include: [
+      {
+        model: Material,
+        as: "material",
+        attributes: ["name"]
+      },
+      {
+        model: UnitOfMeasure,
+        as: "unit",
+        attributes: ["name"]
+      }
+    ],
+    attributes: ["quantity", "comment"]
+  });
+
+  const preparedItems = materialRequestItems.map((item) => ({
+    material_name: item.material?.name,
+    quantity: item.quantity,
+    unit_name: item.unit?.name,
+    comment: item.comment
+  }));
+
+  const title = "Заявка согласована";
+  const message = buildReadyForPurchaseMessage({
+    materialRequestId,
+    projectName: project?.name,
+    blockName: block?.name
+  });
+
+  await notifyUsers(
+    purchaseAgents.map((user) => user.id),
+    {
+      type: "material_request_ready_for_purchase",
+      title,
+      message,
+      entityType: "material_request",
+      entityId: materialRequestId
+    }
+  );
+
+  await Promise.allSettled(
+    purchaseAgents.map((user) =>
+      sendPushToUser({
+        userId: user.id,
+        title,
+        body: message,
+        data: {
+          type: "material_request_ready_for_purchase",
+          entityType: "material_request",
+          materialRequestId: String(materialRequestId)
+        }
+      })
+    )
+  );
+
+  await Promise.allSettled(
+    purchaseAgents
+      .filter((user) => user.email)
+      .map((user) =>
+        sendMaterialRequestEmail({
+          to: user.email,
+          project_name: project?.name,
+          materialRequest: {
+            id: materialRequestId
+          },
+          materialRequestItems: preparedItems
+        })
+      )
+  );
+};
 
 const getAllMaterialRequests = async (req, res) => {
   try {
@@ -18,13 +247,13 @@ const getAllMaterialRequests = async (req, res) => {
       where: whereClause,
       distinct: true,
       col: "id",
-      order: [['project_id', 'ASC']],
+      order: [["project_id", "ASC"]],
       include: [
         {
           model: MaterialRequestItem,
-          as: 'items',
+          as: "items",
           required: false,
-          where: { deleted: false },
+          where: { deleted: false }
         }
       ]
     });
@@ -33,13 +262,13 @@ const getAllMaterialRequests = async (req, res) => {
       success: true,
       data: rows,
       pagination: {
-        total: count,
+        total: count
       }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при заявок на материалы',
+      message: "Ошибка сервера при получении заявок на материалы",
       error: error.message
     });
   }
@@ -51,22 +280,17 @@ const searchMaterialRequests = async (req, res) => {
       project_id,
       block_id,
       statuses,
-      item_statuses, // 👈 добавили
+      item_statuses,
       search,
       page = 1,
       size = 10
     } = req.body;
 
     const offset = (page - 1) * size;
-
     const whereClause = { deleted: false };
 
     if (project_id) whereClause.project_id = project_id;
     if (block_id) whereClause.block_id = block_id;
-
-    /* ============================================================
-       СТАТУСЫ MaterialRequest
-    ============================================================ */
 
     const statusFilter = Array.isArray(statuses)
       ? statuses
@@ -80,80 +304,67 @@ const searchMaterialRequests = async (req, res) => {
       };
     }
 
-    /* ============================================================
-       СТАТУСЫ ITEMS
-    ============================================================ */
-
     const itemStatusFilter = Array.isArray(item_statuses)
       ? item_statuses
       : item_statuses != null
         ? [item_statuses]
         : null;
 
-    /* ============================================================
-       SEARCH
-    ============================================================ */
-
     const searchValue = search?.trim();
 
     if (searchValue) {
-      const s = `%${searchValue}%`;
+      const searchPattern = `%${searchValue}%`;
 
       whereClause[Op.or] = [
-        // поиск по id (частичный)
         Sequelize.where(
-          Sequelize.cast(Sequelize.col('MaterialRequest.id'), 'TEXT'),
-          { [Op.iLike]: s }
+          Sequelize.cast(Sequelize.col("MaterialRequest.id"), "TEXT"),
+          { [Op.iLike]: searchPattern }
         ),
-
-        // поиск по материалу
         Sequelize.where(
-          Sequelize.col('items->material.name'),
-          { [Op.iLike]: s }
+          Sequelize.col("items->material.name"),
+          { [Op.iLike]: searchPattern }
         )
       ];
     }
 
-    /* ============================================================
-       INCLUDE
-    ============================================================ */
-
     const include = [
       {
         model: MaterialRequestItem,
-        as: 'items',
-        required: !!searchValue || !!itemStatusFilter, // 🔥 важно
+        as: "items",
+        required: Boolean(searchValue) || Boolean(itemStatusFilter),
         where: {
           deleted: false,
-          ...(itemStatusFilter && {
-            status: { [Op.in]: itemStatusFilter }
-          })
+          ...(itemStatusFilter && (
+            itemStatusFilter.includes(1)
+              ? {
+                  [Op.or]: [
+                    { status: { [Op.in]: itemStatusFilter } },
+                    { status: { [Op.is]: null } }
+                  ]
+                }
+              : {
+                  status: { [Op.in]: itemStatusFilter }
+                }
+          ))
         },
         include: [
           {
             model: Material,
-            as: 'material',
-            attributes: ['id', 'name'],
+            as: "material",
+            attributes: ["id", "name"],
             required: false
           }
         ]
       }
     ];
 
-    /* ============================================================
-       QUERY
-    ============================================================ */
-
     const { count, rows } = await MaterialRequest.findAndCountAll({
       where: whereClause,
       distinct: true,
       subQuery: false,
-
       limit: Number(size),
       offset: Number(offset),
-
-      order: [['created_at', 'DESC']],
-
+      order: [["created_at", "DESC"]],
       include
     });
 
@@ -169,13 +380,12 @@ const searchMaterialRequests = async (req, res) => {
         hasPrev: page > 1
       }
     });
-
   } catch (error) {
-    console.error('Ошибка поиска заявок на материалы:', error);
+    console.error("Ошибка поиска заявок на материалы:", error);
 
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при поиске заявок на материалы',
+      message: "Ошибка сервера при поиске заявок на материалы",
       error: error.message
     });
   }
@@ -192,7 +402,7 @@ const getMaterialRequestById = async (req, res) => {
       include: [
         {
           model: MaterialRequestItem,
-          as: 'items',
+          as: "items",
           required: false
         }
       ]
@@ -201,7 +411,7 @@ const getMaterialRequestById = async (req, res) => {
     if (!materialRequest) {
       return res.status(404).json({
         success: false,
-        message: 'Заявка на материалы не найдена'
+        message: "Заявка на материалы не найдена"
       });
     }
 
@@ -212,7 +422,7 @@ const getMaterialRequestById = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при получении заявки на материалы',
+      message: "Ошибка сервера при получении заявки на материалы",
       error: error.message
     });
   }
@@ -222,49 +432,63 @@ const createMaterialRequest = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    const currentUserRoleId = Number(req.user?.role_id);
+
+    if (!CREATE_MATERIAL_REQUEST_ROLE_IDS.includes(currentUserRoleId)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        message: "Создание заявок на материалы доступно только админу, ПТО, гл. инженеру и прорабу"
+      });
+    }
+
     const { items, ...requestData } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Список материалов (items) обязателен'
+        message: "Список материалов (items) обязателен"
       });
     }
 
-    // 1. Создаём заявку
-    const materialRequest = await MaterialRequest.create(
-      requestData,
-      { transaction }
-    );
+    const materialRequest = await MaterialRequest.create(requestData, { transaction });
 
-    // 2. Формируем items с привязкой к заявке
-    const requestItems = items.map(item => ({
+    const requestItems = items.map((item) => ({
       ...item,
+      status: item.status ?? 1,
       material_request_id: materialRequest.id
     }));
 
-    // 3. Массово создаём позиции
-    await MaterialRequestItem.bulkCreate(
-      requestItems,
-      { transaction }
-    );
+    await MaterialRequestItem.bulkCreate(requestItems, { transaction });
 
     await transaction.commit();
 
-    res.status(201).json({
+    try {
+      await sendMaterialRequestSignaturePush({
+        materialRequestId: materialRequest.id,
+        projectId: requestData.project_id,
+        blockId: requestData.block_id
+      });
+    } catch (notificationError) {
+      console.error("material request signature push error:", notificationError);
+    }
+
+    return res.status(201).json({
       success: true,
-      message: 'Заявка на материалы успешно создана',
+      message: "Заявка на материалы успешно создана",
       data: materialRequest
     });
-
   } catch (error) {
-    await transaction.rollback();
-    console.error('createMaterialRequest error:', error);
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
+
+    console.error("createMaterialRequest error:", error);
 
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при создании заявки на материалы',
+      message: "Ошибка сервера при создании заявки на материалы",
       error: error.message
     });
   }
@@ -274,9 +498,7 @@ const updateMaterialRequest = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-
     const { id } = req.params;
-
     const {
       approved_by_foreman,
       approved_by_site_manager,
@@ -287,46 +509,35 @@ const updateMaterialRequest = async (req, res) => {
       ...restBody
     } = req.body;
 
-    /* ============================================================
-       Проверяем наличие заявки
-    ============================================================ */
-
     const materialRequest = await MaterialRequest.findByPk(id, { transaction });
 
     if (!materialRequest) {
       await transaction.rollback();
-
       return res.status(404).json({
         success: false,
-        message: 'Заявка на материалы не найдена'
+        message: "Заявка на материалы не найдена"
       });
     }
 
-    /* ============================================================
-       Итоговые значения согласований (body имеет приоритет)
-    ============================================================ */
-
     const finalApprovals = {
-
       approved_by_foreman:
         approved_by_foreman ?? materialRequest.approved_by_foreman,
-
       approved_by_site_manager:
         approved_by_site_manager ?? materialRequest.approved_by_site_manager,
-
       approved_by_purchasing_agent:
         approved_by_purchasing_agent ?? materialRequest.approved_by_purchasing_agent,
-
       approved_by_planning_engineer:
         approved_by_planning_engineer ?? materialRequest.approved_by_planning_engineer,
-
       approved_by_main_engineer:
         approved_by_main_engineer ?? materialRequest.approved_by_main_engineer
     };
 
-    /* ============================================================
-       Проверяем, все ли согласовали
-    ============================================================ */
+    const wasFullyApproved =
+      materialRequest.approved_by_foreman === true &&
+      materialRequest.approved_by_site_manager === true &&
+      materialRequest.approved_by_purchasing_agent === true &&
+      materialRequest.approved_by_planning_engineer === true &&
+      materialRequest.approved_by_main_engineer === true;
 
     const isFullyApproved =
       finalApprovals.approved_by_foreman === true &&
@@ -335,44 +546,25 @@ const updateMaterialRequest = async (req, res) => {
       finalApprovals.approved_by_planning_engineer === true &&
       finalApprovals.approved_by_main_engineer === true;
 
-    /* ============================================================
-       Автоматическое время подписи
-    ============================================================ */
-
     const now = new Date();
 
     const approvalTimes = {
-
-      ...(approved_by_foreman === true &&
-        !materialRequest.approved_by_foreman_time
+      ...(approved_by_foreman === true && !materialRequest.approved_by_foreman_time
         ? { approved_by_foreman_time: now }
         : {}),
-
-      ...(approved_by_site_manager === true &&
-        !materialRequest.approved_by_site_manager_time
+      ...(approved_by_site_manager === true && !materialRequest.approved_by_site_manager_time
         ? { approved_by_site_manager_time: now }
         : {}),
-
-      ...(approved_by_purchasing_agent === true &&
-        !materialRequest.approved_by_purchasing_agent_time
+      ...(approved_by_purchasing_agent === true && !materialRequest.approved_by_purchasing_agent_time
         ? { approved_by_purchasing_agent_time: now }
         : {}),
-
-      ...(approved_by_planning_engineer === true &&
-        !materialRequest.approved_by_planning_engineer_time
+      ...(approved_by_planning_engineer === true && !materialRequest.approved_by_planning_engineer_time
         ? { approved_by_planning_engineer_time: now }
         : {}),
-
-      ...(approved_by_main_engineer === true &&
-        !materialRequest.approved_by_main_engineer_time
+      ...(approved_by_main_engineer === true && !materialRequest.approved_by_main_engineer_time
         ? { approved_by_main_engineer_time: now }
         : {})
-
     };
-
-    /* ============================================================
-       Апдейт заявки + АУДИТ
-    ============================================================ */
 
     const result = await updateWithAudit({
       model: MaterialRequest,
@@ -383,30 +575,24 @@ const updateMaterialRequest = async (req, res) => {
         ...approvalTimes,
         ...(isFullyApproved ? { status: 2 } : {})
       },
-      entityType: 'material_request',
-      action: 'material_request_updated',
+      entityType: "material_request",
+      action: "material_request_updated",
       userId: req.user.id,
       comment,
       transaction
     });
 
     if (result.notFound) {
-
       await transaction.rollback();
-
       return res.status(404).json({
         success: false,
-        message: 'Заявка на материалы не найдена'
+        message: "Заявка на материалы не найдена"
       });
-
     }
 
-    /* ============================================================
-       Если полностью одобрена — обновляем позиции
-    ============================================================ */
+    const becameFullyApproved = !wasFullyApproved && isFullyApproved;
 
-    if (isFullyApproved) {
-
+    if (becameFullyApproved) {
       await MaterialRequestItem.update(
         { status: 2 },
         {
@@ -414,121 +600,67 @@ const updateMaterialRequest = async (req, res) => {
           transaction
         }
       );
-
-      /* ============================================================
-         Уведомления снабженцам
-      ============================================================ */
-
-      const purchaseAgents = await User.findAll({
-        where: {
-          deleted: false,
-          role_id: 7,
-          email: { [Op.ne]: null }
-        },
-        attributes: ['id', 'email', 'first_name', 'last_name'],
-        transaction
-      });
-
-      const project = await Project.findOne({
-        where: {
-          deleted: false,
-          id: materialRequest.project_id
-        },
-        attributes: ['id', 'name'],
-        transaction
-      });
-
-      const materialRequestItems = await MaterialRequestItem.findAll({
-        where: {
-          material_request_id: materialRequest.id,
-          deleted: false
-        },
-        include: [
-          {
-            model: Material,
-            as: 'material',
-            attributes: ['name']
-          },
-          {
-            model: UnitOfMeasure,
-            as: 'unit',
-            attributes: ['name']
-          }
-        ],
-        attributes: ['quantity', 'comment'],
-        transaction
-      });
-
-      const preparedItems = materialRequestItems.map(i => ({
-        material_name: i.material?.name,
-        quantity: i.quantity,
-        unit_of_measure_name: i.unit?.name,
-        comment: i.comment
-      }));
-
-      for (const user of purchaseAgents) {
-
-        await sendMaterialRequestEmail({
-          to: user.email,
-          project_name: project.name,
-          materialRequest,
-          materialRequestItems: preparedItems
-        });
-
-      }
-
     }
 
     await transaction.commit();
 
+    if (becameFullyApproved) {
+      try {
+        await notifyPurchaseAgentsAboutApprovedRequest({
+          materialRequestId: Number(id),
+          projectId: materialRequest.project_id,
+          blockId: materialRequest.block_id
+        });
+      } catch (notificationError) {
+        console.error("material request purchase notifications error:", notificationError);
+      }
+    }
+
     return res.json({
       success: true,
-      message: 'Заявка на материалы успешно обновлена',
+      message: "Заявка на материалы успешно обновлена",
       data: result.instance
     });
-
   } catch (error) {
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
 
-    await transaction.rollback();
-
-    console.error('updateMaterialRequest error:', error);
+    console.error("updateMaterialRequest error:", error);
 
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при обновлении заявки на материалы',
+      message: "Ошибка сервера при обновлении заявки на материалы",
       error: error.message
     });
-
   }
 };
 
 const deleteMaterialRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const materiaId = Number(id);
+    const materialRequestId = Number(id);
 
-    // Обновляем поле deleted вместо удаления записи
     const [updated] = await MaterialRequest.update(
       { deleted: true },
-      { where: { id: materiaId } }
+      { where: { id: materialRequestId } }
     );
 
     if (!updated) {
       return res.status(404).json({
         success: false,
-        message: 'Заявка на материалы не найдена'
+        message: "Заявка на материалы не найдена"
       });
     }
 
     return res.json({
       success: true,
-      message: 'Заявка на материалы успешно удалена'
+      message: "Заявка на материалы успешно удалена"
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Ошибка сервера при удалении заявки на материалы',
+      message: "Ошибка сервера при удалении заявки на материалы",
       error: error.message
     });
   }

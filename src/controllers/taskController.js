@@ -227,10 +227,16 @@ const searchTasks = async (req, res) => {
        QUERY STATS (без пагинации)
     ========================= */
 
+    const statsWhereClause = {
+      ...baseWhereClause
+    };
+
+    if (baseAndConditions.length > 0) {
+      statsWhereClause[Op.and] = [...baseAndConditions];
+    }
+
     const groupedStatusStats = await Task.findAll({
-      where: {
-        deleted: false
-      },
+      where: statsWhereClause,
       attributes: [
         "status",
         [Sequelize.fn("COUNT", Sequelize.col("id")), "count"]
@@ -250,16 +256,26 @@ const searchTasks = async (req, res) => {
       5: 0
     });
 
-    const overdueCount = await Task.count({
-      where: {
-        deleted: false,
-        deadline: {
-          [Op.lt]: Sequelize.fn("NOW")
-        },
-        status: {
-          [Op.notIn]: [4, 5]
-        }
+    const overdueAndConditions = [...baseAndConditions, {
+      deadline: {
+        [Op.lt]: Sequelize.fn("NOW")
       }
+    }, {
+      status: {
+        [Op.notIn]: [4, 5]
+      }
+    }];
+
+    const overdueWhereClause = {
+      ...baseWhereClause
+    };
+
+    if (overdueAndConditions.length > 0) {
+      overdueWhereClause[Op.and] = overdueAndConditions;
+    }
+
+    const overdueCount = await Task.count({
+      where: overdueWhereClause
     });
 
     const total = Array.isArray(count) ? count.length : count;

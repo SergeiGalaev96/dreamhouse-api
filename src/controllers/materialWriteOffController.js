@@ -14,6 +14,8 @@ const UserRole = require('../models/UserRole');
 const updateWithAudit = require('../utils/updateWithAudit');
 const { localTimestampLiteral } = require('../utils/dateTime');
 
+const WAREHOUSE_OPERATION_ROLE_IDS = [1, 5, 10, 11, 15];
+
 const WRITE_OFF_STATUS = {
   CREATED: 1,
   SIGNING: 2,
@@ -448,6 +450,17 @@ const createMaterialWriteOff = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    const currentUserRoleId = Number(req.user?.role_id);
+
+    if (!WAREHOUSE_OPERATION_ROLE_IDS.includes(currentUserRoleId)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        message:
+          '\u041f\u0440\u0438\u0435\u043c\u043a\u0430, \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u044f \u0438 \u043f\u0435\u0440\u0435\u043c\u0435\u0449\u0435\u043d\u0438\u044f \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443, \u0437\u0430\u0432. \u0441\u043a\u043b\u0430\u0434\u043e\u043c, \u043c\u0430\u0441\u0442\u0435\u0440\u0443, \u041f\u0422\u041e \u0438 \u0433\u043b. \u0438\u043d\u0436\u0435\u043d\u0435\u0440\u0443'
+      });
+    }
+
     const {
       warehouse_id,
       work_performed_item_id,

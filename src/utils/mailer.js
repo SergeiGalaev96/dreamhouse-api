@@ -101,6 +101,78 @@ const sendMaterialRequestEmail = async ({
   });
 };
 
+const sendPurchaseOrderSupplierEmail = async ({
+  to,
+  supplier_name,
+  project_name,
+  block_name,
+  purchaseOrder,
+  purchaseOrderItems = []
+}) => {
+  const locationLabel = [project_name, block_name].filter(Boolean).join(', ');
+
+  const rowsHtml = purchaseOrderItems.length
+    ? purchaseOrderItems.map((item, index) => `
+        <tr>
+          <td style="padding:6px; border:1px solid #ddd;">${index + 1}</td>
+          <td style="padding:6px; border:1px solid #ddd;">${item.material_name || '—'}</td>
+          <td style="padding:6px; border:1px solid #ddd; text-align:right;">
+            ${item.quantity ?? '—'} ${item.unit_name || ''}
+          </td>
+        </tr>
+      `).join('')
+    : `
+      <tr>
+        <td colspan="3" style="padding:8px; text-align:center;">
+          Нет позиций
+        </td>
+      </tr>
+    `;
+
+  const html = `
+    <p>Здравствуйте${supplier_name ? `, ${supplier_name}` : ''}!</p>
+
+    <p>
+      Для вас создана новая заявка на закуп материалов.
+    </p>
+
+    <p>
+      <b>ID заявки:</b> ${purchaseOrder.id}<br/>
+      <b>Проект:</b> ${locationLabel || '—'}
+    </p>
+
+    <h3>Позиции закупа</h3>
+
+    <table style="border-collapse:collapse; width:100%; font-size:14px;">
+      <thead>
+        <tr style="background:#f5f5f5;">
+          <th style="padding:6px; border:1px solid #ddd;">#</th>
+          <th style="padding:6px; border:1px solid #ddd;">Материал</th>
+          <th style="padding:6px; border:1px solid #ddd;">Количество</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+
+    <p style="margin-top:20px;">
+      Пожалуйста, перейдите в систему DreamHouse для обработки заявки.
+    </p>
+
+    <p style="font-size:12px; color:#888;">
+      Это письмо сформировано автоматически системой DreamHouse.
+    </p>
+  `;
+
+  await mailer.sendMail({
+    from: `"DreamHouse" <${process.env.SMTP_USER}>`,
+    to,
+    subject: `Новая заявка на закуп №${purchaseOrder.id}`,
+    html
+  });
+};
+
 const formatDate = (date) => {
   if (!date) return '—';
 
@@ -220,6 +292,7 @@ const sendTaskDeadlineReminderEmail = async ({
 module.exports = {
   sendTempPasswordEmail,
   sendMaterialRequestEmail,
+  sendPurchaseOrderSupplierEmail,
   sendTaskAssignedEmail,
   sendTaskStatusChangedEmail,
   sendTaskDeadlineReminderEmail

@@ -1,7 +1,192 @@
 const { Op, Sequelize } = require("sequelize");
 const sequelize = require('../config/database');
-const { Project, ProjectBlock, Material, MaterialRequestItem, MaterialRequest, PurchaseOrder, PurchaseOrderItem } = require('../models');
+const {
+  Project,
+  ProjectBlock,
+  Material,
+  UnitOfMeasure,
+  MaterialRequestItem,
+  MaterialRequest,
+  PurchaseOrder,
+  PurchaseOrderItem
+} = require('../models');
+const Supplier = require('../models/Supplier');
+const User = require('../models/User');
+const { sendPurchaseOrderSupplierEmail } = require('../utils/mailer');
+const { notifyUsers } = require('../utils/notifications');
+const { sendPushToUser } = require('../utils/pushNotifications');
 const updateWithAudit = require('../utils/updateWithAudit');
+
+const PURCHASE_CREATE_ROLE_IDS = [1, 7, 10, 11];
+const PURCHASE_ORDER_SUPPLIER_NOTIFICATION_TYPE = 'purchase_order_created_for_supplier';
+
+const buildLocationLabel = (projectName, blockName) =>
+  [projectName, blockName].filter(Boolean).join(', ');
+
+const buildPurchaseOrderSupplierMessage = ({ purchaseOrderId, projectName, blockName }) => {
+  const orderLabel = `Заявка на закуп №${purchaseOrderId}`;
+  const locationLabel = buildLocationLabel(projectName, blockName);
+
+  return locationLabel
+    ? `${orderLabel} (${locationLabel}) ожидает вашей обработки`
+    : `${orderLabel} ожидает вашей обработки`;
+};
+
+const notifySuppliersAboutPurchaseOrder = async ({
+  purchaseOrderId,
+  projectId,
+  blockId,
+  items = []
+}) => {
+  const supplierIds = [...new Set(
+    items
+      .map((item) => Number(item?.supplier_id))
+      .filter((supplierId) => Number.isFinite(supplierId) && supplierId > 0)
+  )];
+
+  if (!supplierIds.length) {
+    return;
+  }
+
+  const materialIds = [...new Set(
+    items
+      .map((item) => Number(item?.material_id))
+      .filter((materialId) => Number.isFinite(materialId) && materialId > 0)
+  )];
+
+  const unitIds = [...new Set(
+    items
+      .map((item) => Number(item?.unit_of_measure))
+      .filter((unitId) => Number.isFinite(unitId) && unitId > 0)
+  )];
+
+  const [project, block, suppliers, supplierUsers, materials, units] = await Promise.all([
+    projectId
+      ? Project.findOne({
+          where: { id: projectId, deleted: false },
+          attributes: ['id', 'name']
+        })
+      : null,
+    blockId
+      ? ProjectBlock.findOne({
+          where: { id: blockId, deleted: false },
+          attributes: ['id', 'name']
+        })
+      : null,
+    Supplier.findAll({
+      where: {
+        id: { [Op.in]: supplierIds },
+        deleted: false
+      },
+      attributes: ['id', 'name', 'email']
+    }),
+    User.findAll({
+      where: {
+        supplier_id: { [Op.in]: supplierIds },
+        deleted: false
+      },
+      attributes: ['id', 'supplier_id']
+    }),
+    materialIds.length
+      ? Material.findAll({
+          where: {
+            id: { [Op.in]: materialIds },
+            deleted: false
+          },
+          attributes: ['id', 'name']
+        })
+      : [],
+    unitIds.length
+      ? UnitOfMeasure.findAll({
+          where: {
+            id: { [Op.in]: unitIds },
+            deleted: false
+          },
+          attributes: ['id', 'name']
+        })
+      : []
+  ]);
+
+  const materialMap = new Map(
+    materials.map((material) => [Number(material.id), material.name])
+  );
+  const unitMap = new Map(
+    units.map((unit) => [Number(unit.id), unit.name])
+  );
+  const supplierUsersMap = supplierUsers.reduce((acc, user) => {
+    const supplierId = Number(user.supplier_id);
+    if (!acc[supplierId]) {
+      acc[supplierId] = [];
+    }
+    acc[supplierId].push(user);
+    return acc;
+  }, {});
+
+  const title = 'Новая заявка на закуп';
+  const message = buildPurchaseOrderSupplierMessage({
+    purchaseOrderId,
+    projectName: project?.name,
+    blockName: block?.name
+  });
+
+  await Promise.allSettled(
+    suppliers.map(async (supplier) => {
+      const supplierId = Number(supplier.id);
+      const supplierItems = items
+        .filter((item) => Number(item?.supplier_id) === supplierId)
+        .map((item) => ({
+          material_name: materialMap.get(Number(item.material_id)) || '—',
+          quantity: item.quantity,
+          unit_name: unitMap.get(Number(item.unit_of_measure)) || ''
+        }));
+
+      if (supplier.email) {
+        await sendPurchaseOrderSupplierEmail({
+          to: supplier.email,
+          supplier_name: supplier.name,
+          project_name: project?.name,
+          block_name: block?.name,
+          purchaseOrder: {
+            id: purchaseOrderId
+          },
+          purchaseOrderItems: supplierItems
+        });
+      }
+
+      const linkedUsers = supplierUsersMap[supplierId] || [];
+
+      if (!linkedUsers.length) {
+        return;
+      }
+
+      await notifyUsers(
+        linkedUsers.map((user) => user.id),
+        {
+          type: PURCHASE_ORDER_SUPPLIER_NOTIFICATION_TYPE,
+          title,
+          message,
+          entityType: 'purchase_order',
+          entityId: purchaseOrderId
+        }
+      );
+
+      await Promise.allSettled(
+        linkedUsers.map((user) =>
+          sendPushToUser({
+            userId: user.id,
+            title,
+            body: message,
+            data: {
+              type: PURCHASE_ORDER_SUPPLIER_NOTIFICATION_TYPE,
+              entityType: 'purchase_order',
+              purchaseOrderId: String(purchaseOrderId)
+            }
+          })
+        )
+      );
+    })
+  );
+};
 
 const getAllPurchaseOrders = async (req, res) => {
   try {
@@ -239,6 +424,17 @@ const createPurchaseOrder = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    const currentUserRoleId = Number(req.user?.role_id);
+
+    if (!PURCHASE_CREATE_ROLE_IDS.includes(currentUserRoleId)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        message:
+          '\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u0437\u0430\u043a\u0443\u043f\u0430 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443, \u0441\u043d\u0430\u0431\u0436\u0435\u043d\u0446\u0443, \u041f\u0422\u041e \u0438 \u0433\u043b. \u0438\u043d\u0436\u0435\u043d\u0435\u0440\u0443'
+      });
+    }
+
     const { items, ...orderData } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -375,6 +571,17 @@ const createPurchaseOrder = async (req, res) => {
 
     await transaction.commit();
 
+    try {
+      await notifySuppliersAboutPurchaseOrder({
+        purchaseOrderId: purchaseOrder.id,
+        projectId: orderData.project_id,
+        blockId: orderData.block_id,
+        items
+      });
+    } catch (notificationError) {
+      console.error('notifySuppliersAboutPurchaseOrder error:', notificationError);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Заявка на материалы успешно создана',
@@ -382,7 +589,9 @@ const createPurchaseOrder = async (req, res) => {
     });
 
   } catch (error) {
-    await transaction.rollback();
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
     console.error('createPurchaseOrder error:', error);
 
     res.status(500).json({

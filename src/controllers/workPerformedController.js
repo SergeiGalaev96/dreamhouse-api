@@ -1,7 +1,20 @@
 const { Op } = require("sequelize");
-const { sequelize, WorkPerformed, WorkPerformedItem } = require('../models');
+const {
+  sequelize,
+  WorkPerformed,
+  WorkPerformedItem,
+  Project,
+  ProjectBlock
+} = require('../models');
 const Document = require('../models/Document');
+const User = require('../models/User');
 const updateWithAudit = require('../utils/updateWithAudit');
+const { notifyUsers } = require('../utils/notifications');
+const { sendPushToUser } = require('../utils/pushNotifications');
+
+const WORK_PERFORMED_CREATE_ROLE_IDS = [1, 4, 10, 11, 15];
+const WORK_PERFORMED_SIGNATURE_ROLE_IDS = [10, 11];
+const WORK_PERFORMED_SIGNATURE_NOTIFICATION_TYPE = 'work_performed_signature_required';
 
 const normalizeNullableNumber = (value) => {
   if (value === undefined || value === null || value === "") {
@@ -10,6 +23,133 @@ const normalizeNullableNumber = (value) => {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildLocationLabel = (projectName, blockName) =>
+  [projectName, blockName].filter(Boolean).join(", ");
+
+const buildWorkPerformedSignatureMessage = ({ workPerformedId, projectName, blockName }) => {
+  const actLabel = `АВР №${workPerformedId}`;
+  const locationLabel = buildLocationLabel(projectName, blockName);
+
+  return locationLabel
+    ? `${actLabel} (${locationLabel}) ожидает вашей подписи`
+    : `${actLabel} ожидает вашей подписи`;
+};
+
+const loadWorkPerformedLocation = async ({ projectId, blockId, transaction = null }) => {
+  const [project, block] = await Promise.all([
+    projectId
+      ? Project.findOne({
+          where: {
+            id: projectId,
+            deleted: false
+          },
+          attributes: ["id", "name", "foreman_id"],
+          transaction
+        })
+      : null,
+    blockId
+      ? ProjectBlock.findOne({
+          where: {
+            id: blockId,
+            deleted: false
+          },
+          attributes: ["id", "name"],
+          transaction
+        })
+      : null
+  ]);
+
+  return { project, block };
+};
+
+const loadWorkPerformedSignatureRecipientIds = async ({ projectId, transaction = null }) => {
+  const { project } = await loadWorkPerformedLocation({ projectId, transaction });
+
+  const [eligibleForeman, roleUsers] = await Promise.all([
+    project?.foreman_id
+      ? User.findOne({
+          where: {
+            id: project.foreman_id,
+            deleted: false,
+            supplier_id: {
+              [Op.is]: null
+            },
+            role_id: {
+              [Op.ne]: 13
+            }
+          },
+          attributes: ["id"],
+          transaction
+        })
+      : null,
+    User.findAll({
+      where: {
+        deleted: false,
+        supplier_id: {
+          [Op.is]: null
+        },
+        role_id: {
+          [Op.in]: WORK_PERFORMED_SIGNATURE_ROLE_IDS
+        }
+      },
+      attributes: ["id"],
+      transaction
+    })
+  ]);
+
+  return [...new Set(
+    [
+      eligibleForeman?.id,
+      ...roleUsers.map((user) => user.id)
+    ]
+      .map((userId) => Number(userId))
+      .filter((userId) => Number.isFinite(userId) && userId > 0)
+  )];
+};
+
+const notifyAboutWorkPerformedSignature = async ({
+  workPerformedId,
+  projectId,
+  blockId
+}) => {
+  const { project, block } = await loadWorkPerformedLocation({ projectId, blockId });
+  const recipientIds = await loadWorkPerformedSignatureRecipientIds({ projectId });
+
+  if (!recipientIds.length) {
+    return;
+  }
+
+  const title = 'Требуется подпись АВР';
+  const message = buildWorkPerformedSignatureMessage({
+    workPerformedId,
+    projectName: project?.name,
+    blockName: block?.name
+  });
+
+  await notifyUsers(recipientIds, {
+    type: WORK_PERFORMED_SIGNATURE_NOTIFICATION_TYPE,
+    title,
+    message,
+    entityType: 'work_performed',
+    entityId: workPerformedId
+  });
+
+  await Promise.allSettled(
+    recipientIds.map((userId) =>
+      sendPushToUser({
+        userId,
+        title,
+        body: message,
+        data: {
+          type: WORK_PERFORMED_SIGNATURE_NOTIFICATION_TYPE,
+          entityType: 'work_performed',
+          workPerformedId: String(workPerformedId)
+        }
+      })
+    )
+  );
 };
 
 
@@ -145,6 +285,17 @@ const createWorkPerformed = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    const currentUserRoleId = Number(req.user?.role_id);
+
+    if (!WORK_PERFORMED_CREATE_ROLE_IDS.includes(currentUserRoleId)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        success: false,
+        message:
+          '\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u0410\u0412\u0420 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443, \u041f\u0422\u041e, \u0433\u043b. \u0438\u043d\u0436\u0435\u043d\u0435\u0440\u0443, \u043f\u0440\u043e\u0440\u0430\u0431\u0443 \u0438 \u043c\u0430\u0441\u0442\u0435\u0440\u0443'
+      });
+    }
+
     const {
       items = [],
       ...workData
@@ -201,6 +352,16 @@ const createWorkPerformed = async (req, res) => {
 
     await transaction.commit();
 
+    try {
+      await notifyAboutWorkPerformedSignature({
+        workPerformedId: work.id,
+        projectId: workData.project_id,
+        blockId: workData.block_id
+      });
+    } catch (notificationError) {
+      console.error('notifyAboutWorkPerformedSignature error:', notificationError);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Акт выполненных работ успешно создан',
@@ -209,7 +370,9 @@ const createWorkPerformed = async (req, res) => {
 
   } catch (error) {
 
-    await transaction.rollback();
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
 
     console.error('Ошибка создания АВР:', error);
 

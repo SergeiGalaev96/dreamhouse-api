@@ -8,6 +8,7 @@ const {
   getForm2Report,
   getForm19Report,
   getMbpWriteOffReport,
+  getProjectsOverviewReport,
   getEstimateStageReport,
   getScheduleReport,
   getMaterialScheduleReport
@@ -182,6 +183,20 @@ router.post('/form19', authenticateToken, getForm19Report);
  *         description: Данные отчета по списаниям МБП
  */
 router.post('/mbp-write-off', authenticateToken, getMbpWriteOffReport);
+
+/**
+ * @swagger
+ * /api/reports/projects-overview:
+ *   post:
+ *     summary: Сводный отчет по всем проектам
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Данные сводного отчета по проектам
+ */
+router.post('/projects-overview', authenticateToken, getProjectsOverviewReport);
 
 /**
  * @swagger
